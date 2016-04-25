@@ -2,11 +2,7 @@
 
 import downloader
 
-trade_type_dic = {
-    '买盘' : 1,
-    '卖盘' : -1,
-    '中性盘' : 0
-}
+
 
 
 if __name__=="__main__":
@@ -20,10 +16,17 @@ if __name__=="__main__":
     #    print "requesting " + line.strip('\n') + "..."
     #    downloader.request_instrument("dayk_qfq", line.strip('\n'))
 
-    import tushare as ts
-    a = ts.get_tick_data('600848', date='2016-04-24')
-    if a[0:1].time == '00:00:00':
-        print 'aaa'
+
+    stock_list = downloader.get_stock_basics()
+    itr = stock_list.itertuples()
+    row = next(itr)
+    while row:
+        downloader.request_history_tick(row[0], start_date= '2005-01-01')
+        row = next(itr)
+
+
+
+
 
 
 
