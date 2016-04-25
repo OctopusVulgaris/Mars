@@ -23,7 +23,7 @@ def request_dayk(table, code, start_date = '1990-01-01', end_date = '2050-01-01'
 def create_tick_talbe(code):
     conn = psycopg2.connect("dbname=test user=postgres password=postgres")
     cur = conn.cursor()
-    sql = "create table if not exists tick_tbl_" + code + " (index integer, time timestamp primary key, price numeric, change text, volume numeric, amount numeric, type integer)"
+    sql = "create table if not exists tick_tbl_" + code + " (index integer, time timestamp, price numeric, change text, volume numeric, amount numeric, type integer)"
     cur.execute(sql)
     conn.commit()
     cur.close()
@@ -44,9 +44,10 @@ def change_dic(x):
 def request_history_tick(code, start_date='1995-01-01', end_date='2050-01-01'):
     create_tick_talbe(code)
 
-    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/test', echo=True)
+    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/test')
     cur_day = datetime.datetime.strptime(start_date, '%Y-%m-%d')
-    last_day = datetime.datetime.today()
+    last_day = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+    print 'requesting code: ' + code
 
 
     while cur_day != last_day:

@@ -21,7 +21,7 @@ if __name__=="__main__":
     itr = stock_list.itertuples()
     row = next(itr)
     while row:
-        downloader.request_history_tick(row[0], start_date= '2005-01-01')
+        downloader.request_history_tick(row[0], start_date= '2005-01-01', end_date= '2016-03-31')
         row = next(itr)
 
 
