@@ -2,9 +2,14 @@
 
 import tushare as ts
 import sqlalchemy as sa
+
 from sqlalchemy import Date, text, DateTime, Integer
 import psycopg2
 import datetime
+import logging
+
+logging.basicConfig(filename='log.txt', level=logging.DEBUG)
+
 
 def create_dayk_talbe():
     conn = psycopg2.connect("dbname=test user=postgres password=postgres")
@@ -23,11 +28,12 @@ def request_dayk(table, code, start_date = '1990-01-01', end_date = '2050-01-01'
 def create_tick_talbe(code):
     conn = psycopg2.connect("dbname=test user=postgres password=postgres")
     cur = conn.cursor()
-    sql = "create table if not exists tick_tbl_" + code + " (index integer, time timestamp, price numeric, change text, volume numeric, amount numeric, type integer)"
+    sql = "create table if not exists tick_tbl_" + str(code) + " (index integer, time timestamp, price numeric, change text, volume numeric, amount numeric, type integer)"
     cur.execute(sql)
     conn.commit()
     cur.close()
     conn.close()
+
 
 trade_type_dic = {
     '买盘' : 1,
@@ -47,21 +53,27 @@ def request_history_tick(code, start_date='1995-01-01', end_date='2050-01-01'):
     engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/test')
     cur_day = datetime.datetime.strptime(start_date, '%Y-%m-%d')
     last_day = datetime.datetime.strptime(end_date, '%Y-%m-%d')
-    print 'requesting code: ' + code
+    logging.info('requesting code: ' + str(code))
 
 
     while cur_day != last_day:
-        print cur_day
-        tick = ts.get_tick_data(code, date=cur_day.date())
-        if not tick.empty:
-            if tick.time[0] != 'alert("当天没有数据");':
-                tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
-                tick['change'] = tick['change'].apply(change_dic)
-                tick['time'] = str(cur_day.date()) + ' '+ tick['time']
-                tick.to_sql('tick_tbl_' + code, engine, if_exists='append', dtype={'time': DateTime})
+        try:
+            logging.info('cur_day: ' + cur_day)
+            tick = ts.get_tick_data(code, date=cur_day.date())
+            if not tick.empty:
+                if tick.time[0] != 'alert("当天没有数据");':
+                    tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
+                    tick['change'] = tick['change'].apply(change_dic)
+                    tick['time'] = str(cur_day.date()) + ' '+ tick['time']
+                    tick.to_sql('tick_tbl_' + str(code), engine, if_exists='append', dtype={'time': DateTime})
+
+
+        except Exception:
+            logging.error(str(code) + ' prcessing failed on ' + str(cur_day))
 
         delta = datetime.timedelta(days=1)
         cur_day = cur_day + delta
+
 
 def get_stock_basics():
     list = ts.get_stock_basics()
