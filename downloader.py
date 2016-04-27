@@ -95,7 +95,7 @@ def update_stock_basics():
     lenB = len(new_code_list)
     newAdd = open('.\\conf\\stock_list_new_add.txt', 'w')
     removed = open('.\\conf\\stock_list_removed.txt', 'w')
-    while posA < lenA or posB < lenB:
+    while posA < lenA and posB < lenB:
         if old_code_list[posA] == new_code_list[posB]:
             posA += 1
             posB += 1
@@ -105,6 +105,12 @@ def update_stock_basics():
         else:
             removed.write(str(old_code_list[posA]) + '\n')
             posA += 1
+    while posA < lenA:
+        removed.write(str(old_code_list[posA]) + '\n')
+        posA += 1
+    while posB < lenB:
+        newAdd.write(str(new_code_list[posB]) + '\n')
+        posB += 1
 
     newAdd.close()
     removed.close()
