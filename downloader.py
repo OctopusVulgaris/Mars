@@ -2,6 +2,8 @@
 
 import tushare as ts
 import sqlalchemy as sa
+import pandas as pd
+
 
 from sqlalchemy import Date, text, DateTime, Integer
 import psycopg2
@@ -77,12 +79,37 @@ def request_history_tick(code, start_date='1995-01-01', end_date='2050-01-01'):
         cur_day = cur_day + delta
 
 
-def get_stock_basics():
-    list = ts.get_stock_basics()
+def update_stock_basics():
     engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=True)
-    list.sort_index(inplace=True)
-    list.to_sql('stock_list', engine, if_exists='replace')
-    return  list
+    oldlist = pd.read_sql_table('stock_list', engine)
+    oldlist.to_csv('./conf/stock_list_old.csv', encoding='utf-8')
+    newlist = ts.get_stock_basics()
+    newlist.sort_index(inplace=True)
+    newlist.to_sql('stock_list', engine, if_exists='replace')
+    newlist = pd.read_sql_table('stock_list', engine)
+    old_code_list = oldlist['code']
+    new_code_list = newlist['code']
+    posA = 0
+    posB = 0
+    lenA = len(old_code_list)
+    lenB = len(new_code_list)
+    newAdd = open('.\\conf\\stock_list_new_add.txt', 'w')
+    removed = open('.\\conf\\stock_list_removed.txt', 'w')
+    while posA < lenA or posB < lenB:
+        if old_code_list[posA] == new_code_list[posB]:
+            posA += 1
+            posB += 1
+        elif old_code_list[posA] > new_code_list[posB]:
+            newAdd.write(str(new_code_list[posB]) + '\n')
+            posB += 1
+        else:
+            removed.write(str(old_code_list[posA]) + '\n')
+            posA += 1
+
+    newAdd.close()
+    removed.close()
+
+    return newlist
 
 
 
