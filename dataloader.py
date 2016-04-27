@@ -4,7 +4,7 @@ import sqlalchemy as sa
 
 def get_code_list(start_code, end_code):
     engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/test')
-    sql = 'SELECT code, name FROM stock_list where code > CAST(' + start_code +' AS text) and code < CAST(' + end_code + ' AS text)'
+    sql = 'SELECT code, name FROM stock_list where CAST(code AS Integer) >= ' + start_code +' and CAST(code AS Integer) <= ' + end_code
 
     return pd.read_sql(sql, engine)
 

@@ -7,6 +7,7 @@ from sqlalchemy import Date, text, DateTime, Integer
 import psycopg2
 import datetime
 import logging
+import threading
 
 logging.basicConfig(filename='log.txt', level=logging.DEBUG)
 
@@ -28,7 +29,7 @@ def request_dayk(table, code, start_date = '1990-01-01', end_date = '2050-01-01'
 def create_tick_talbe(code):
     conn = psycopg2.connect("dbname=test user=postgres password=postgres")
     cur = conn.cursor()
-    sql = "create table if not exists tick_tbl_" + str(code) + " (index integer, time timestamp, price numeric, change text, volume numeric, amount numeric, type integer)"
+    sql = "create table if not exists tick_tbl_" + code + " (index integer, time timestamp, price numeric, change text, volume numeric, amount numeric, type integer)"
     cur.execute(sql)
     conn.commit()
     cur.close()
@@ -53,23 +54,24 @@ def request_history_tick(code, start_date='1995-01-01', end_date='2050-01-01'):
     engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/test')
     cur_day = datetime.datetime.strptime(start_date, '%Y-%m-%d')
     last_day = datetime.datetime.strptime(end_date, '%Y-%m-%d')
-    logging.info('requesting code: ' + str(code))
+    logging.info('requesting code: ' + code + str(threading.currentThread()))
 
 
     while cur_day != last_day:
         try:
-            logging.info('cur_day: ' + cur_day)
-            tick = ts.get_tick_data(code, date=cur_day.date())
+            logging.info('cur_day: ' + str(cur_day) + str(threading.currentThread()))
+            tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=500)
             if not tick.empty:
                 if tick.time[0] != 'alert("当天没有数据");':
                     tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
                     tick['change'] = tick['change'].apply(change_dic)
                     tick['time'] = str(cur_day.date()) + ' '+ tick['time']
-                    tick.to_sql('tick_tbl_' + str(code), engine, if_exists='append', dtype={'time': DateTime})
+                    tick.to_sql('tick_tbl_' + code, engine, if_exists='append', dtype={'time': DateTime})
+                    logging.info('save to tick_tbl_' + code + ' on '+ str(cur_day) + ' thread ' + str(threading.currentThread()))
 
 
         except Exception:
-            logging.error(str(code) + ' prcessing failed on ' + str(cur_day))
+            logging.error(str(code) + ' prcessing failed on ' + str(cur_day) + str(threading.currentThread()))
 
         delta = datetime.timedelta(days=1)
         cur_day = cur_day + delta

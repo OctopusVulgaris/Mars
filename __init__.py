@@ -13,16 +13,16 @@ def download_tick(start_code, end_code):
         row = next(itr)
 
 threads = []
-t1 = threading.Thread(target=download_tick, args=('000000','002134'))
-#threads.append(t1)
-t2 = threading.Thread(target=download_tick, args=('002133','002738'))
+t1 = threading.Thread(target=download_tick, args=('000000','002133'))
+threads.append(t1)
+t2 = threading.Thread(target=download_tick, args=('002134','002737'))
 threads.append(t2)
-t3 = threading.Thread(target=download_tick, args=('002737','600060'))
-#threads.append(t3)
-t4 = threading.Thread(target=download_tick, args=('600059','600764'))
-#threads.append(t4)
-t5 = threading.Thread(target=download_tick, args=('600763','604000'))
-#threads.append(t5)
+t3 = threading.Thread(target=download_tick, args=('002738','600060'))
+threads.append(t3)
+t4 = threading.Thread(target=download_tick, args=('600061','600764'))
+threads.append(t4)
+t5 = threading.Thread(target=download_tick, args=('600765','604000'))
+threads.append(t5)
 print
 
 if __name__=="__main__":
