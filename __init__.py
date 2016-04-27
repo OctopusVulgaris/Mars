@@ -11,7 +11,7 @@ def download_tick(start_code, end_code):
     while row:
         downloader.request_history_tick(row.code, start_date='2005-01-01', end_date='2016-03-31')
         row = next(itr)
-
+a
 threads = []
 t1 = threading.Thread(target=download_tick, args=('000000','002133'))
 threads.append(t1)
