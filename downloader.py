@@ -17,16 +17,25 @@ logging.basicConfig(filename='log.txt', level=logging.DEBUG)
 def create_dayk_talbe():
     conn = psycopg2.connect("dbname=postgres user=postgres password=postgres")
     cur = conn.cursor()
-    cur.execute("create table if not exists dayk_qfq (date date, open numeric, high numeric, close numeric, low numeric, volume numeric, amount numeric, code integer)")
+    cur.execute("create table if not exists dayk (date date, open numeric, high numeric, close numeric, low numeric, volume numeric, amount numeric, open_hfq numeric, high_hfq numeric, close_hfq numeric, low_hfq numeric,code text)")
     conn.commit()
     cur.close()
     conn.close()
 
-def request_dayk(table, code, start_date = '1990-01-01', end_date = '2050-01-01', fuquan = 'qfq'):
-    dayK = ts.get_h_data(code, start_date, end_date, fuquan)
-    dayK['code'] = code
-    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=True)
-    dayK.to_sql(table, engine, if_exists='append', dtype={'date': Date})
+def request_dayk(table, code, engine, start_date = '1990-01-01', end_date = '2050-01-01'):
+    try:
+        dayK_bfq = ts.get_h_data(code, start_date, end_date, None, retry_count=500)
+        dayK_hfq = ts.get_h_data(code, start_date, end_date, 'hfq', retry_count=500)
+        dayK_bfq['open_hfq'] = dayK_hfq['open']
+        dayK_bfq['high_hfq'] = dayK_hfq['high']
+        dayK_bfq['low_hfq'] = dayK_hfq['low']
+        dayK_bfq['close_hfq'] = dayK_hfq['close']
+        dayK_bfq['code'] = code
+        dayK_bfq.to_sql(table, engine, if_exists='append', dtype={'date': Date})
+        logging.info(str(code) + ', request_dayk success')
+    except Exception:
+        logging.error(str(code) + ' request_dayk failed on ' + str(threading.currentThread()))
+
 
 def create_tick_talbe(code):
     conn = psycopg2.connect("dbname=postgres user=postgres password=postgres")
@@ -56,7 +65,7 @@ def request_history_tick(code, start_date='1995-01-01', end_date='2050-01-01'):
     engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
     cur_day = datetime.datetime.strptime(start_date, '%Y-%m-%d')
     last_day = datetime.datetime.strptime(end_date, '%Y-%m-%d')
-    logging.info('requesting code: ' + code + str(threading.currentThread()))
+    logging.info('requesting tick, code: ' + code + str(threading.currentThread()))
 
 
     while cur_day != last_day:
@@ -73,7 +82,7 @@ def request_history_tick(code, start_date='1995-01-01', end_date='2050-01-01'):
 
 
         except Exception:
-            logging.error(str(code) + ' prcessing failed on ' + str(cur_day) + str(threading.currentThread()))
+            logging.error(str(code) + ' request tick failed on ' + str(cur_day) + str(threading.currentThread()))
 
         delta = datetime.timedelta(days=1)
         cur_day = cur_day + delta
