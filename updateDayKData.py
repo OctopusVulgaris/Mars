@@ -4,10 +4,13 @@ import downloader
 import threading
 import dataloader
 import sqlalchemy as sa
+import pandas as pd
+
+engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
 
 def thread_func(start_code, end_code):
-    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
-    target_list = dataloader.get_code_list(str(start_code), str(end_code))
+
+    target_list = dataloader.get_code_list(str(start_code), str(end_code), engine)
     itr = target_list.itertuples()
     row = next(itr)
     while row:

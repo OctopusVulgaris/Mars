@@ -13,7 +13,6 @@ import threading
 
 logging.basicConfig(filename='log.txt', level=logging.DEBUG)
 
-
 def create_dayk_talbe():
     conn = psycopg2.connect("dbname=postgres user=postgres password=postgres")
     cur = conn.cursor()
@@ -59,10 +58,9 @@ def change_dic(x):
     else:
         return x
 
-def request_history_tick(code, start_date='1995-01-01', end_date='2050-01-01'):
+def request_history_tick(code, engine, start_date='1995-01-01', end_date='2050-01-01'):
     create_tick_talbe(code)
 
-    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
     cur_day = datetime.datetime.strptime(start_date, '%Y-%m-%d')
     last_day = datetime.datetime.strptime(end_date, '%Y-%m-%d')
     logging.info('requesting tick, code: ' + code + str(threading.currentThread()))
@@ -89,7 +87,6 @@ def request_history_tick(code, start_date='1995-01-01', end_date='2050-01-01'):
 
 
 def update_stock_basics():
-    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=True)
     oldlist = pd.read_sql_table('stock_list', engine)
     oldlist.to_csv('./conf/stock_list_old.csv', encoding='utf-8')
     newlist = ts.get_stock_basics()

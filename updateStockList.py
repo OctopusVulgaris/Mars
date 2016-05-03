@@ -1,14 +1,12 @@
 # -*- coding:utf-8 -*-
 
-from downloader import update_stock_basics
+import downloader
 import threading
 import dataloader
 
-
 if __name__=="__main__":
 
-    update_stock_basics()
-
+    downloader.update_stock_basics()
 
 
 
