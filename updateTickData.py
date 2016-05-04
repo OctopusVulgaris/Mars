@@ -3,16 +3,17 @@
 import mydownloader
 import threading
 import dataloader
+import datetime
 import sqlalchemy as sa
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
 
 def download_tick(start_code, end_code):
-    target_list = dataloader.get_code_list(str(start_code), str(end_code), engine)
+    target_list = dataloader.get_code_list(start_code, end_code, engine)
     itr = target_list.itertuples()
     row = next(itr)
     while row:
-        mydownloader.request_history_tick(row.code, engine, start_date='2005-01-01', end_date='2016-03-31')
+        mydownloader.request_history_tick(row.code, engine, start_date=datetime.datetime(2005,01,01), end_date=datetime.datetime(2016,03,31))
         row = next(itr)
 
 threads = []

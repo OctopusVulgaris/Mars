@@ -14,7 +14,7 @@ def thread_func(start_code, end_code):
     itr = target_list.itertuples()
     row = next(itr)
     while row:
-        downloader.request_dayk('dayk', row.code, engine, start_date='1990-01-01', end_date='2016-03-30')
+        mydownloader.request_dayk('dayk', row.code, engine, start_date='1990-01-01', end_date='2016-03-30')
         row = next(itr)
 
 threads = []
@@ -31,7 +31,7 @@ threads.append(t5)
 print
 
 if __name__ == "__main__":
-    downloader.create_dayk_talbe()
+    mydownloader.create_dayk_talbe()
 
     for t in threads:
         t.setDaemon(True)

@@ -58,17 +58,16 @@ def change_dic(x):
     else:
         return x
 
-def request_history_tick(code, engine, start_date='1995-01-01', end_date='2050-01-01'):
+def request_history_tick(code, engine, start_date, end_date):
     create_tick_talbe(code)
 
-    cur_day = datetime.datetime.strptime(start_date, '%Y-%m-%d')
-    last_day = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+    cur_day = start_date
     logging.info('requesting tick, code: ' + code + str(threading.currentThread()))
 
 
-    while cur_day != last_day:
+    while cur_day != end_date:
         try:
-            logging.info('cur_day: ' + str(cur_day) + str(threading.currentThread()))
+            #logging.info('cur_day: ' + str(cur_day) + str(threading.currentThread()))
             tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=500)
             if not tick.empty:
                 if tick.time[0] != 'alert("当天没有数据");':
@@ -86,7 +85,7 @@ def request_history_tick(code, engine, start_date='1995-01-01', end_date='2050-0
         cur_day = cur_day + delta
 
 
-def update_stock_basics():
+def update_stock_basics(engine):
     oldlist = pd.read_sql_table('stock_list', engine)
     oldlist.to_csv('./conf/stock_list_old.csv', encoding='utf-8')
     newlist = ts.get_stock_basics()
