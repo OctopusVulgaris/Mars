@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 
-import downloader
+import mydownloader
 import threading
 import dataloader
 import sqlalchemy as sa

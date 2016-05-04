@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 
-import downloader
+import mydownloader
 import threading
 import dataloader
 import sqlalchemy as sa
@@ -12,7 +12,7 @@ def download_tick(start_code, end_code):
     itr = target_list.itertuples()
     row = next(itr)
     while row:
-        downloader.request_history_tick(row.code, engine, start_date='2005-01-01', end_date='2016-03-31')
+        mydownloader.request_history_tick(row.code, engine, start_date='2005-01-01', end_date='2016-03-31')
         row = next(itr)
 
 threads = []
