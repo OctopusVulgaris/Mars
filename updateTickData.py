@@ -17,15 +17,15 @@ def download_tick(start_code, end_code):
         row = next(itr)
 
 threads = []
-t1 = threading.Thread(target=download_tick, args=('000683','002133'))
+t1 = threading.Thread(target=download_tick, args=('000713','002133'))
 threads.append(t1)
-t2 = threading.Thread(target=download_tick, args=('002453','002737'))
+t2 = threading.Thread(target=download_tick, args=('002485','002737'))
 threads.append(t2)
-t3 = threading.Thread(target=download_tick, args=('300387','600060'))
+t3 = threading.Thread(target=download_tick, args=('300457','600060'))
 threads.append(t3)
-t4 = threading.Thread(target=download_tick, args=('600331','600764'))
+t4 = threading.Thread(target=download_tick, args=('600360','600764'))
 threads.append(t4)
-t5 = threading.Thread(target=download_tick, args=('601888','604000'))
+t5 = threading.Thread(target=download_tick, args=('603002','604000'))
 threads.append(t5)
 print
 
