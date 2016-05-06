@@ -25,15 +25,17 @@ def filter_group(x):
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
 
-code = '002271'
-#downloader.request_history_tick(code, engine, '2016-04-01', '2016-05-01')
-#mydownloader.request_dayk('dayk', code, engine, '2014-01-01', '2016-05-01')
+code = '600724'
+
 
 t1 = datetime.datetime.now()
 delta = datetime.timedelta(days=1)
-cur_day = datetime.datetime.strptime('2015-10-01', '%Y-%m-%d')
+cur_day = datetime.datetime.strptime('2016-04-01', '%Y-%m-%d')
 next_day = cur_day + delta
-last_day = datetime.datetime.strptime('2016-03-31', '%Y-%m-%d')
+last_day = datetime.datetime.strptime('2016-05-06', '%Y-%m-%d')
+
+#mydownloader.request_history_tick(code, engine, cur_day, last_day)
+#mydownloader.request_dayk('dayk', code, engine, '2014-01-01', '2016-05-01')
 
 
 sql = "SELECT time, price, change, volume, amount, type FROM tick_tbl_"+code+" where time > DATE '" + cur_day.strftime('%Y-%m-%d') + "' and time < DATE '" + last_day.strftime('%Y-%m-%d') +"'"
@@ -65,12 +67,15 @@ zz[0] = gg.loc(axis=0)[:,0]['amount'].reset_index(1)['amount']
 zz[50] = gg.loc(axis=0)[:,50]['amount'].reset_index(1)['amount']
 zz[100] = gg.loc(axis=0)[:,100]['amount'].reset_index(1)['amount']
 zz[500] = gg.loc(axis=0)[:,500]['amount'].reset_index(1)['amount']
-zz['price'] = one_year_tick.groupby(to_date).last()['price']
+zz['amount'] = one_year_tick.groupby(to_date).sum()['amount']
+#zz['price'] = one_year_tick.groupby(to_date).last()['price']
+
+
 
 
 #print zz
 
-ax = zz.plot(rot= 70, grid=True, kind='bar', subplots=True)
+ax = zz.plot(rot= 70, grid=True, kind='bar')
 #bx = dayk.plot(rot = 70, grid=True)
 
 
