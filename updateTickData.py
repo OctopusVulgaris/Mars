@@ -20,15 +20,15 @@ def download_tick(start_code, end_code):
         pass
 
 threads = []
-t1 = threading.Thread(target=download_tick, args=('000895','000980'))
+t1 = threading.Thread(target=download_tick, args=('000913','000980'))
 threads.append(t1)
-t2 = threading.Thread(target=download_tick, args=('002701','002737'))
+t2 = threading.Thread(target=download_tick, args=('002733','002737'))
 threads.append(t2)
-t3 = threading.Thread(target=download_tick, args=('600527','600608'))
+t3 = threading.Thread(target=download_tick, args=('600546','600608'))
 threads.append(t3)
-t4 = threading.Thread(target=download_tick, args=('002061','002133'))
+t4 = threading.Thread(target=download_tick, args=('002077','002133'))
 threads.append(t4)
-t5 = threading.Thread(target=download_tick, args=('600696','600764'))
+t5 = threading.Thread(target=download_tick, args=('600714','600764'))
 threads.append(t5)
 print
 
