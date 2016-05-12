@@ -11,21 +11,24 @@ engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:543
 def download_tick(start_code, end_code):
     target_list = dataloader.get_code_list(start_code, end_code, engine)
     itr = target_list.itertuples()
-    row = next(itr)
-    while row:
-        mydownloader.request_history_tick(row.code, engine, start_date=datetime.datetime(2005,01,01), end_date=datetime.datetime(2016,03,31))
+    try:
         row = next(itr)
+        while row:
+            mydownloader.request_history_tick(row.code, engine, start_date=datetime.datetime(2005,01,01), end_date=datetime.datetime(2016,03,31))
+            row = next(itr)
+    except StopIteration:
+        pass
 
 threads = []
-t1 = threading.Thread(target=download_tick, args=('000713','002133'))
+t1 = threading.Thread(target=download_tick, args=('000895','000980'))
 threads.append(t1)
-t2 = threading.Thread(target=download_tick, args=('002485','002737'))
+t2 = threading.Thread(target=download_tick, args=('002701','002737'))
 threads.append(t2)
-t3 = threading.Thread(target=download_tick, args=('300457','600060'))
+t3 = threading.Thread(target=download_tick, args=('600527','600608'))
 threads.append(t3)
-t4 = threading.Thread(target=download_tick, args=('600360','600764'))
+t4 = threading.Thread(target=download_tick, args=('002061','002133'))
 threads.append(t4)
-t5 = threading.Thread(target=download_tick, args=('603002','604000'))
+t5 = threading.Thread(target=download_tick, args=('600696','600764'))
 threads.append(t5)
 print
 

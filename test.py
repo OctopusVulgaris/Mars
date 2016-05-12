@@ -25,7 +25,7 @@ def filter_group(x):
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
 
-code = '600118'
+code = '300244'
 
 
 t1 = datetime.datetime.now()
@@ -34,11 +34,11 @@ cur_day = datetime.datetime.strptime('2016-04-01', '%Y-%m-%d')
 next_day = cur_day + delta
 last_day = datetime.datetime.strptime('2016-05-07', '%Y-%m-%d')
 
-mydownloader.request_history_tick(code, engine, cur_day, last_day)
+mydownloader.request_test_tick(code, engine, cur_day, last_day)
 #mydownloader.request_dayk('dayk', code, engine, '2014-01-01', '2016-05-01')
 
 
-sql = "SELECT time, price, change, volume, amount, type FROM tick_tbl_"+code+" where time > DATE '" + cur_day.strftime('%Y-%m-%d') + "' and time < DATE '" + last_day.strftime('%Y-%m-%d') +"'"
+sql = "SELECT time, price, change, volume, amount, type FROM test_"+code+" where time > DATE '" + cur_day.strftime('%Y-%m-%d') + "' and time < DATE '" + last_day.strftime('%Y-%m-%d') +"'"
 one_year_tick = pd.read_sql(sql, engine, index_col='time', parse_dates={'time':'%Y-%m-%d'})
 
 #sql = "SELECT date, close FROM dayk where date > DATE '" + cur_day.strftime('%Y-%m-%d') + "' and date < DATE '" + last_day.strftime('%Y-%m-%d') +"'"

@@ -84,6 +84,41 @@ def request_history_tick(code, engine, start_date, end_date):
         delta = datetime.timedelta(days=1)
         cur_day = cur_day + delta
 
+def create_test_talbe(code):
+    conn = psycopg2.connect("dbname=postgres user=postgres password=postgres")
+    cur = conn.cursor()
+    sql = "create table if not exists test_" + code + " (index integer, time timestamp, price numeric, change text, volume numeric, amount numeric, type integer)"
+    cur.execute(sql)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def request_test_tick(code, engine, start_date, end_date):
+    create_test_talbe(code)
+
+    cur_day = start_date
+    logging.info('requesting tick, code: ' + code + str(threading.currentThread()))
+
+
+    while cur_day != end_date:
+        try:
+            #logging.info('cur_day: ' + str(cur_day) + str(threading.currentThread()))
+            tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=500)
+            if not tick.empty:
+                if tick.time[0] != 'alert("当天没有数据");':
+                    tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
+                    tick['change'] = tick['change'].apply(change_dic)
+                    tick['time'] = str(cur_day.date()) + ' '+ tick['time']
+                    tick.to_sql('test_' + code, engine, if_exists='append', dtype={'time': DateTime})
+                    logging.info('save to test_' + code + ' on '+ str(cur_day) + ' thread ' + str(threading.currentThread()))
+
+
+        except Exception:
+            logging.error(str(code) + ' request tick failed on ' + str(cur_day) + str(threading.currentThread()))
+
+        delta = datetime.timedelta(days=1)
+        cur_day = cur_day + delta
+
 
 def update_stock_basics(engine):
     oldlist = pd.read_sql_table('stock_list', engine)
