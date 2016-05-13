@@ -25,16 +25,16 @@ def filter_group(x):
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
 
-code = '600637'
+code = '600118'
 
 
 t1 = datetime.datetime.now()
 delta = datetime.timedelta(days=1)
-cur_day = datetime.datetime.strptime('2016-04-29', '%Y-%m-%d')
+cur_day = datetime.datetime.strptime('2015-06-15', '%Y-%m-%d')
 next_day = cur_day + delta
-last_day = datetime.datetime.strptime('2016-06-07', '%Y-%m-%d')
+last_day = datetime.datetime.strptime('2015-07-15', '%Y-%m-%d')
 
-#mydownloader.request_test_tick(code, engine, cur_day, last_day)
+mydownloader.request_test_tick(code, engine, cur_day, last_day)
 #mydownloader.request_dayk('dayk', code, engine, '2014-01-01', '2016-05-01')
 
 
@@ -70,24 +70,25 @@ zz[100] = gg.loc(axis=0)[:,100]['amount'].reset_index(1)['amount']
 zz[500] = gg.loc(axis=0)[:,500]['amount'].reset_index(1)['amount']
 zz['amount'] = one_year_tick.groupby(to_date).sum()['amount']
 #zz['price'] = one_year_tick.groupby(to_date).last()['price']
+zz.fillna(0, inplace=True)
 
 tt[0] = gg.loc(axis=0)[:,0]['total'].reset_index(1)['total']
 tt[15] = gg.loc(axis=0)[:,15]['total'].reset_index(1)['total']
 tt[100] = gg.loc(axis=0)[:,100]['total'].reset_index(1)['total']
 tt[500] = gg.loc(axis=0)[:,500]['total'].reset_index(1)['total']
 tt['total'] = one_year_tick.groupby(to_date).sum()['total']
+tt.fillna(0, inplace=True)
 
-mm = one_year_tick['
-#print mm
-print 'b'
-print mm.plot(rot= 70, grid=Truamount'].cumsum()e, kind='bar', title=code)
+mm = zz.cumsum()
+#print zz
+print mm
 
-print 'a'
 #print zz
 
-#ax = zz.plot(rot= 70, grid=True, kind='bar', title = code)
-#bx = tt.plot(rot= 70, grid=True, kind='bar', title = code)
+zz.plot(rot= 70, grid=True, kind='bar', title = code)
+tt.plot(rot= 70, grid=True, kind='bar', title = code)
 #bx = dayk.plot(rot = 70, grid=True)
+mm.plot(rot= 70, grid=True, kind='line', title = code)
 
 
 plt.show()
