@@ -2,7 +2,8 @@
 import pandas as pd
 import sqlalchemy as sa
 
-def get_code_list(start_code, end_code, engine):
+def get_code_list(start_code, end_code):
+    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
     sql = 'SELECT code, name FROM stock_list where CAST(code AS Integer) >= ' + start_code +' and CAST(code AS Integer) <= ' + end_code
 #    sql = "SELECT * FROM tick_tbl_000001 where time < DATE '2016-01-01' and time > DATE '2015-01-01'"
     return pd.read_sql(sql, engine)

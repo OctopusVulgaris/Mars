@@ -33,12 +33,12 @@ def filter_group(x):
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
 
-code = '000998'
+code = '002271'
 t1 = datetime.datetime.now()
 delta = datetime.timedelta(days=1460)
-cur_day = datetime.datetime.strptime('2005-01-01', '%Y-%m-%d')
+cur_day = datetime.datetime.strptime('2013-01-01', '%Y-%m-%d')
 next_day = cur_day + delta
-last_day = datetime.datetime.strptime('2009-01-01', '%Y-%m-%d')
+last_day = datetime.datetime.strptime('2016-05-15', '%Y-%m-%d')
 
 one_year_tick = pd.DataFrame()
 while last_day < datetime.datetime(2016,12,31):
@@ -56,9 +56,9 @@ print datetime.datetime.now()-t1
 
 #one_year_tick['volume'] = one_year_tick['amount'] / one_year_tick['price']
 #one_year_tick['volume'] = one_year_tick['volume'].round()
-one_year_tick['change'] = one_year_tick['change'].apply(change)
-one_year_tick['amount2'] = one_year_tick['amount'] * one_year_tick['change']
-one_year_tick['amount'] = one_year_tick['amount'] * one_year_tick['type']
+#one_year_tick['change'] = one_year_tick['change'].apply(change)
+#one_year_tick['amount2'] = one_year_tick['amount'] * one_year_tick['change']
+#one_year_tick['amount'] = one_year_tick['amount'] * one_year_tick['type']
 one_year_tick['type'] = one_year_tick['amount'].apply(filter_group)
 
 def money_flow():
@@ -71,38 +71,46 @@ def money_flow():
     #print one_year_tick
     #one_year_tick.to_sql('tick_tbl_' + code, engine, if_exists='replace', dtype={'time': DateTime})
 
-    gg = one_year_tick.groupby([to_date, 'type']).sum()
+    gg = one_year_tick.groupby([to_date, 'type']).count()
 
     pd.set_option('display.multi_sparse', False)
 
     zz = pd.DataFrame()
     yy = pd.DataFrame()
 
+
     zz[0] = gg.loc(axis=0)[:,0]['amount'].reset_index(1)['amount']
     zz[20] = gg.loc(axis=0)[:,20]['amount'].reset_index(1)['amount']
     zz[100] = gg.loc(axis=0)[:,100]['amount'].reset_index(1)['amount']
     zz[300] = gg.loc(axis=0)[:,300]['amount'].reset_index(1)['amount']
-    zz['amount'] = one_year_tick.groupby(to_date).sum()['amount']
-
-    yy[0] = gg.loc(axis=0)[:,0]['amount2'].reset_index(1)['amount2']
-    yy[20] = gg.loc(axis=0)[:,20]['amount2'].reset_index(1)['amount2']
-    yy[100] = gg.loc(axis=0)[:,100]['amount2'].reset_index(1)['amount2']
-    yy[300] = gg.loc(axis=0)[:,300]['amount2'].reset_index(1)['amount2']
-    yy['amount'] = one_year_tick.groupby(to_date).sum()['amount2']
-
     zz.fillna(0, inplace=True)
-    yy.fillna(0, inplace=True)
+    cycle = 5
+    #zz[0] = pd.ewma(zz[0], cycle)
+    #zz[20] = pd.ewma(zz[20], cycle)
+    #zz[100] = pd.ewma(zz[100], cycle)
+    #zz[300] = pd.ewma(zz[300], cycle)
+    print zz
+#    zz['amount'] = one_year_tick.groupby(to_date).sum()['amount']
+#
+#    yy[0] = gg.loc(axis=0)[:,0]['amount2'].reset_index(1)['amount2']
+#    yy[20] = gg.loc(axis=0)[:,20]['amount2'].reset_index(1)['amount2']
+#    yy[100] = gg.loc(axis=0)[:,100]['amount2'].reset_index(1)['amount2']
+#    yy[300] = gg.loc(axis=0)[:,300]['amount2'].reset_index(1)['amount2']
+#    yy['amount'] = one_year_tick.groupby(to_date).sum()['amount2']
+#
+
+#    yy.fillna(0, inplace=True)
 
 
-    mm = zz.cumsum()
-    nn = yy.cumsum()
+#    mm = zz.cumsum()
+#    nn = yy.cumsum()
     print datetime.datetime.now()-t1
 
-    #zz.plot(rot= 70, grid=True, kind='bar', title = code)
+    zz.plot(rot= 70, grid=True, kind='line', title = code, subplots=True)
 
     #bx = dayk.plot(rot = 70, grid=True)
-    mm.plot(rot= 70, grid=True, kind='line', title = code+'buysell')
-    nn.plot(rot= 70, grid=True, kind='line', title = code+'change')
+   # mm.plot(rot= 70, grid=True, kind='line', title = code+'buysell')
+   # nn.plot(rot= 70, grid=True, kind='line', title = code+'change')
 
 
     plt.show()
