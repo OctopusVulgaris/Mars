@@ -42,11 +42,25 @@ def updateTmpHDF():
     df.set_index(['StartDate', 'Span', 'Holds', 'PLTS'], drop=True, inplace=True)
     df.sort_index(inplace=True)
     df = df.loc(axis=0)[:,[90,180,270,360,720],:,:]
-    rt = df.RT.groupby(level=[1,2,3]).describe()
-    rt_mean =  rt.loc(axis=0)[:,:,:,'mean']
-    rt_mean.plot()
-    print rt_mean.index.names
-    print pd.value_counts(rt_mean.index.get_level_values(0))
+    rt = df.RT.groupby(level=[0,1]).describe()
+    rt_mean = rt.loc(axis=0)[:,:,'mean']
+
+
+    aa = pd.DataFrame()
+
+    aa[90] = rt_mean.loc(axis=0)[:,90]
+    aa[180] = rt_mean.loc(axis=0)[:,180].reindex(aa.index, method='backfill')
+    aa[270] = rt_mean.loc(axis=0)[:,270].reindex(aa.index, method='backfill')
+    aa[360] = rt_mean.loc(axis=0)[:,360].reindex(aa.index, method='backfill')
+    aa[720] = rt_mean.loc(axis=0)[:,720].reindex(aa.index, method='backfill')
+
+    #print rt_mean.loc(axis=0)[:,180].reindex(aa.index, method='backfill')
+
+    aa.reset_index(level=[1,2], drop= True, inplace=True)
+    #print aa
+
+    aa.plot(kind='line', grid=True, logy=False)
+
 
 
 
