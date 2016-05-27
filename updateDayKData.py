@@ -36,7 +36,7 @@ if __name__ == "__main__":
     for t in threads:
         t.setDaemon(True)
         t.start()
-    t.join()
+
 
 
 
