@@ -527,7 +527,7 @@ def get_index_full_daily_data(code, timeout=60):
 
         data.to_sql('indexdaily', engine, if_exists='append', index=True)
 
-def get_all_full_daily_data(retry=50, pause=10):
+def get_all_full_index_daily(retry=50, pause=10):
     target_list = dataloader.get_index_list('', '', engine)
     itr = target_list.itertuples()
     row = next(itr)
