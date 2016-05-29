@@ -122,7 +122,7 @@ def thread_func(start, end):
 
 if __name__ == "__main__":
 
-    thread_func('000008', '604000')
+    thread_func('300113', '604000')
     # for t in threads:
     #     t.setDaemon(True)
     #     t.start()
