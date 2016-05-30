@@ -13,7 +13,7 @@ cash = 100000.0
 alert = 0.9
 st_pattern = r'^ST|^S|^\*ST|退市'
 ashare_pattern = r'^0|^3|^6'
-end_date = datetime.datetime(2016,5,13)
+end_date = datetime.datetime(2008,1,10)
 
 holdings_log = pd.DataFrame(columns=('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash'))
 transaction_log = pd.DataFrame(columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio', 'fee'))
@@ -31,6 +31,8 @@ class instrument:
 def sell(stock, price, date, hfqratio, type, pamo):
     # profit=(price sell * hfq sell- price buy * hfq buy) * volume/ buy hfq
     global cash
+    global holdings
+    global transaction_log
     #ratio = sell ratio / buy ratio
     ratio = hfqratio / stock.hfqratio
     stock.volume = stock.volume * ratio
@@ -52,6 +54,8 @@ def sell(stock, price, date, hfqratio, type, pamo):
 
 def buy(code, price, margin, date, hfqratio, pmao):
     global cash
+    global holdings
+    global transaction_log
     amo1 = 0
     amo2 = 0
     prevAmo = pmao * 0.005
@@ -84,7 +88,11 @@ def buy(code, price, margin, date, hfqratio, pmao):
     cash = cash - inst.amount - fee
 
 def handle_day(x):
+    global holdings
+    global holdings_log
     date = x.index[0][0]
+    if date == end_date:
+        date = date
     if cash < 0:
         return
     #sell
