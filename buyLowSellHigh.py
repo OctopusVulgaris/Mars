@@ -74,6 +74,7 @@ def buy(code, price, margin, date, hfqratio, pmao):
     inst.price = inst.amount / volume
     inst.code = code
     inst.hfqratio = hfqratio
+    inst.ratio_d = hfqratio
     #hfq summit price
     inst.summit = price / hfqratio
     holdings.append(inst)
@@ -102,6 +103,7 @@ def handle_day(x):
             adjSummit = stock.summit * row.hfqratio
             if adjSummit < row.phigh:
                 stock.summit = row.phigh / row.hfqratio
+                adjSummit = row.phigh
 
             # suspend for trading, continue hold
             if row.open < 0.01:
