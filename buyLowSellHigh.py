@@ -221,8 +221,11 @@ def sort(x):
 
 def calc(x):
     x = x.sort_index()
+    z = x.index
+    x.reset_index(inplace=True)
     valid = x[x.open > 0.01]
     y = valid.index
+    #reset index to jump halt days
     valid = valid.reset_index()
 
     result = pd.DataFrame()
@@ -244,8 +247,6 @@ def calc(x):
     result.loc[:, 'phigh'] = result.phigh * factor
     result.loc[:, 'pamo'] = valid.index - 1
     result.loc[:, 'pamo'] = result.pamo.map(valid.amo)
-    result.loc[:, 'ptotalcap'] = valid.index - 1
-    result.loc[:, 'ptotalcap'] = result.ptotalcap.map(valid.totalcap)
     factor = result.phfqratio / result.pphfq
     result.loc[:, 'plowlimit'] = valid.index - 2
     result.loc[:, 'plowlimit'] = result.plowlimit.map(valid.close * factor) * 0.9
@@ -256,14 +257,20 @@ def calc(x):
     result.loc[:, 'lowlimit'] = result.pclose * 0.9
     result.loc[:, 'highlimit'] = result.pclose * 1.1
 
+    #recover to valid index first
     result = result.set_index(y)
+    #recover to x.index
     result = result.reindex(x.index, fill_value=0)
 
-    # on day data, value exist no matter halt
+    # on day data, value exist no matter haltx
+    result.loc[:, 'ptotalcap'] = x.index - 1
+    result.loc[:, 'ptotalcap'] = result.ptotalcap.map(x.totalcap)
+
     result.loc[:, 'name'] = x.name
-    result.loc[:, 'totalcap'] = x.totalcap
+    #result.loc[:, 'totalcap'] = x.totalcap
     result.loc[:, 'hfqratio'] = x.hfqratio
-    return result
+    #recover to date index
+    return result.set_index(z)
 
 def csvtoHDF():
     t1 = datetime.datetime.now()
