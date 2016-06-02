@@ -126,40 +126,36 @@ def handle_day(x):
     #global holdings
     #global holdings_log
     date = x.index[0][0]
-    # if date == end_date:
-    #     date = date
-    # if cash < 0:
-    #     return
     #sell
     to_be_sell = []
     for code in holdings.keys():
         try:
             pos = x.index.get_loc((date, code))
-            #row = x.ix[pos]
-            updateDayPrcRatio(code, x.ix[pos].hfqratio, x.ix[pos].open)
+            row = x.ix[pos]
+            updateDayPrcRatio(code, row.hfqratio, row.open)
             # total cap out of rank 300, sell
             if not pos < 300:
-                allSell(code, x.ix[pos].open, date, x.ix[pos].hfqratio, 'totalcap', x.ix[pos].pamo)
+                allSell(code, row.open, date, row.hfqratio, 'totalcap', row.pamo)
                 to_be_sell.append(code)
                 continue
 
             #adjsummit = newhfq/oldhfq * summit, so we save summit / oldhfq for future use
-            adjSummit = summits[code] * x.ix[pos].hfqratio
-            if adjSummit < x.ix[pos].phigh:
-                summits[code] = x.ix[pos].phigh / x.ix[pos].hfqratio
-                adjSummit = x.ix[pos].phigh
+            adjSummit = summits[code] * row.hfqratio
+            if adjSummit < row.phigh:
+                summits[code] = row.phigh / row.hfqratio
+                adjSummit = row.phigh
 
             # suspend for trading, continue hold
-            if x.ix[pos].open < 0.01:
+            if row.open < 0.01:
                 continue
             # open high, but not reach limit, sell
-            if x.ix[pos].open > x.ix[pos].phigh and x.ix[pos].open < x.ix[pos].highlimit:
-                allSell(code, x.ix[pos].open, date, x.ix[pos].hfqratio, 'open high', x.ix[pos].pamo)
+            if row.open > row.phigh and row.open < row.highlimit:
+                allSell(code, row.open, date, row.hfqratio, 'open high', row.pamo)
                 to_be_sell.append(code)
                 continue
             # open less than alert line, sell
-            if x.ix[pos].open < adjSummit * alert:
-                allSell(code, x.ix[pos].open, date, x.ix[pos].hfqratio, 'fallback', x.ix[pos].pamo)
+            if row.open < adjSummit * alert:
+                allSell(code, row.open, date, row.hfqratio, 'fallback', row.pamo)
                 to_be_sell.append(code)
                 continue
         except KeyError:
@@ -171,21 +167,12 @@ def handle_day(x):
 
     #buy
     if cash > 0:
-        if date == datetime.datetime(2008,1,18):
-            print x.loc['2008-1-18', '600448']
-            print len(x)
-            print x.index.get_loc(('2008-1-18', '600448'))
         cnt = holdingNum()
         if cnt < max_holdings:
             availablCnt = max_holdings - cnt
             margin = cash / availablCnt
             valid = x.head(poolsize)
-            aa = len(valid)
-            if date == datetime.datetime(2008, 1, 18):
-                print valid[valid.buyflag == True]
             valid = valid[valid.buyflag == True]
-            if date == datetime.datetime(2008, 1, 18):
-                print valid
             for row in valid.itertuples():
                 if availablCnt <= 0.01:
                     break
@@ -293,6 +280,7 @@ def prepareMediateFile():
     t1 = datetime.datetime.now()
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf','day')
+    df = df[df.code.str.contains(ashare_pattern)]
 
     print len(df)
 
@@ -343,5 +331,5 @@ def Processing():
     holdings_log.to_csv('d:\\holdings_log.csv')
 
 #csvtoHDF()
-#prepareMediateFile()
+prepareMediateFile()
 Processing()
