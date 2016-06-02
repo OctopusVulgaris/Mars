@@ -57,7 +57,7 @@ def sell(stock, price, date, hfqratio, type, pamo):
     #global holdings
     #global transaction_log
     #ratio = sell ratio / buy ratio
-    ratio = hfqratio / stock.hfqratio
+    ratio = stock.hfqratio / hfqratio
     stock.volume = stock.volume * ratio
     prevAmo = pamo * 0.005
     amount = price * stock.volume
@@ -107,7 +107,7 @@ def buy(code, price, margin, date, hfqratio, pmao):
     inst.hfqratio = hfqratio
     inst.ratio_d = hfqratio
     #hfq summit price
-    hfqPrc = price / hfqratio
+    hfqPrc = price * hfqratio
     if summits.has_key(code):
         summits[code] = max(summits[code], hfqPrc)
     else:
@@ -140,9 +140,9 @@ def handle_day(x):
                 continue
 
             #adjsummit = newhfq/oldhfq * summit, so we save summit / oldhfq for future use
-            adjSummit = summits[code] * row.hfqratio
+            adjSummit = summits[code] / row.hfqratio
             if adjSummit < row.phigh:
-                summits[code] = row.phigh / row.hfqratio
+                summits[code] = row.phigh * row.hfqratio
                 adjSummit = row.phigh
 
             # suspend for trading, continue hold
@@ -207,6 +207,7 @@ def sort(x):
 
 
 def calc(x):
+
     x = x.sort_index()
     z = x.index
     x.reset_index(inplace=True)
@@ -222,7 +223,7 @@ def calc(x):
     result.loc[:, 'phfqratio'] = result.phfqratio.map(valid.hfqratio)
     result.loc[:, 'pphfq'] = valid.index - 2
     result.loc[:, 'pphfq'] = result.pphfq.map(valid.hfqratio)
-    factor = result.hfqratio / result.phfqratio
+    factor = result.phfqratio / result.hfqratio
     result.loc[:, 'pclose'] = valid.index - 1
     result.loc[:, 'pclose'] = result.pclose.map(valid.close)
     result.loc[:, 'pclose'] = result.pclose * factor
@@ -234,15 +235,25 @@ def calc(x):
     result.loc[:, 'phigh'] = result.phigh * factor
     result.loc[:, 'pamo'] = valid.index - 1
     result.loc[:, 'pamo'] = result.pamo.map(valid.amo)
-    factor = result.phfqratio / result.pphfq
+    factor = result.pphfq / result.hfqratio
     result.loc[:, 'plowlimit'] = valid.index - 2
-    result.loc[:, 'plowlimit'] = result.plowlimit.map(valid.close * factor) * 0.9
+    result.loc[:, 'plowlimit'] = result.plowlimit.map(valid.close)
+    result.loc[:, 'plowlimit'] = result.plowlimit * factor
+    result.loc[:, 'plowlimit'] = result.plowlimit * 0.9
 
     # on day data, value not exist for halt
     #result.loc[:, 'name'] = valid.name
     result.loc[:, 'open'] = valid.open
     result.loc[:, 'lowlimit'] = result.pclose * 0.9
     result.loc[:, 'highlimit'] = result.pclose * 1.1
+
+    # round all price to two decimal places
+    result.pclose = result.pclose.round(2)
+    result.plow = result.plow.round(2)
+    result.phigh = result.phigh.round(2)
+    result.plowlimit = result.plowlimit.round(2)
+    result.lowlimit = result.lowlimit.round(2)
+    result.highlimit = result.highlimit.round(2)
 
     #recover to valid index first
     result = result.set_index(y)
@@ -257,7 +268,8 @@ def calc(x):
     #result.loc[:, 'totalcap'] = x.totalcap
     result.loc[:, 'hfqratio'] = x.hfqratio
     #recover to date index
-    return result.set_index(z)
+    result = result.set_index(z)
+    return result
 
 def csvtoHDF():
     t1 = datetime.datetime.now()
@@ -291,10 +303,14 @@ def prepareMediateFile():
 
     print 'calculating...'
     result = groupbycode.apply(calc)
+
     result = result.reset_index()
+
     print result.columns
     result = result.set_index(['date', 'code'])
     result = result.sort_index()
+
+
 
     groupbydate = result.groupby(level=0)
     df = groupbydate.apply(sort)
@@ -331,5 +347,5 @@ def Processing():
     holdings_log.to_csv('d:\\holdings_log.csv')
 
 #csvtoHDF()
-prepareMediateFile()
+#prepareMediateFile()
 Processing()
