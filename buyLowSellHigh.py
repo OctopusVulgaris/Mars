@@ -10,6 +10,7 @@ import logging
 max_holdings = 10
 holdings = {}
 summits = {}
+to_be_sell = []
 cash = 100000.0
 poolsize = 300
 alert = 0.9
@@ -43,26 +44,26 @@ def updateDayPrcRatio(code, hfqratio, open):
         stock.ratio_d = hfqratio
         stock.price = open
 
-def allSell(code, price, date, hfqratio, type, pamo):
+def allSell(code, date, row, type):
+    if (row.high - row.low) < 0.01 and (row.high - row.lowlimit) < 0.01:
+        #can't sell on low limit
+        return
     if holdings.has_key(code):
+        to_be_sell.append(code)
         stocks = holdings[code]
         for stock in stocks:
-            sell(stock, price, date, hfqratio, type, pamo)
+            sell(stock, row.open, date, row.hfqratio, type, row.pamo)
     else:
         print 'fail to sell ' + code + ' ' + str(date)
 
 def sell(stock, price, date, hfqratio, type, pamo):
-    # profit=(price sell * hfq sell- price buy * hfq buy) * volume/ buy hfq
     global cash
-    #global holdings
-    #global transaction_log
-    #ratio = sell ratio / buy ratio
     ratio = stock.hfqratio / hfqratio
     stock.volume = stock.volume * ratio
     prevAmo = pamo * 0.005
     amount = price * stock.volume
     if amount > prevAmo:
-        vol1 = int(prevAmo / price / 100) * 100
+        vol1 = round(prevAmo / price, -2)
         vol2 = stock.volume - vol1
         amount = vol1 * price + vol2 * price *0.98
 
@@ -87,12 +88,12 @@ def buy(code, price, margin, date, hfqratio, pmao):
     tmpvol = 0
     #print 'buy ' + str(code) + ', vol ' + str(margin) + ', price ' + str(price) + ', date ' + str(date)
     if margin > pmao:
-        volume = int((prevAmo / price) / 100) * 100
-        tmpvol = int(((margin - prevAmo) / (price * 1.02)) / 100) * 100
+        volume = round(prevAmo / price, -2)
+        tmpvol = round((margin - prevAmo) / (price * 1.02), -2)
         amo1 = price * volume
         amo2 = price * 1.02 * tmpvol
     else:
-        volume = int((margin / price) / 100) * 100
+        volume = round(margin / price, -2)
         amo1 = price * volume
     volume = volume + tmpvol
 
@@ -127,7 +128,7 @@ def handle_day(x):
     #global holdings_log
     date = x.index[0][0]
     #sell
-    to_be_sell = []
+
     for code in holdings.keys():
         try:
             pos = x.index.get_loc((date, code))
@@ -135,8 +136,7 @@ def handle_day(x):
             updateDayPrcRatio(code, row.hfqratio, row.open)
             # total cap out of rank 300, sell
             if not pos < 300:
-                allSell(code, row.open, date, row.hfqratio, 'totalcap', row.pamo)
-                to_be_sell.append(code)
+                allSell(code, date, row, 'totalcap')
                 continue
 
             #adjsummit = newhfq/oldhfq * summit, so we save summit / oldhfq for future use
@@ -150,20 +150,21 @@ def handle_day(x):
                 continue
             # open high, but not reach limit, sell
             if row.open > row.phigh and row.open < row.highlimit:
-                allSell(code, row.open, date, row.hfqratio, 'open high', row.pamo)
-                to_be_sell.append(code)
+                allSell(code, date, row, 'open high')
                 continue
             # open less than alert line, sell
             if row.open < adjSummit * alert:
-                allSell(code, row.open, date, row.hfqratio, 'fallback', row.pamo)
-                to_be_sell.append(code)
+                allSell(code, date, row, 'fallback')
                 continue
         except KeyError:
             print 'error, instrument ' + str(code) + ' not exist  on ' + str(date)
 
+    global to_be_sell
     for code in to_be_sell:
         holdings.pop(code)
         summits.pop(code)
+    to_be_sell[:] = []
+
 
     #buy
     if cash > 0:
@@ -178,6 +179,9 @@ def handle_day(x):
                     break
                 code = row.Index[1]
                 open = row.open
+                #can't buy at high limit
+                if (row.high - row.low) < 0.01 and (row.high - row.highlimit) < 0.01:
+                    continue
                 buy(code, open, margin, date, row.hfqratio, row.pamo)
                 availablCnt = availablCnt - 1
 
@@ -239,21 +243,26 @@ def calc(x):
     result.loc[:, 'plowlimit'] = valid.index - 2
     result.loc[:, 'plowlimit'] = result.plowlimit.map(valid.close)
     result.loc[:, 'plowlimit'] = result.plowlimit * factor
-    result.loc[:, 'plowlimit'] = result.plowlimit * 0.9
+    result.loc[:, 'plowlimit'] = result.plowlimit * 900
 
     # on day data, value not exist for halt
     #result.loc[:, 'name'] = valid.name
+    result.pclose = result.pclose.apply(round, ndigits=2)
     result.loc[:, 'open'] = valid.open
-    result.loc[:, 'lowlimit'] = result.pclose * 0.9
-    result.loc[:, 'highlimit'] = result.pclose * 1.1
+    result.loc[:, 'high'] = valid.high
+    result.loc[:, 'low'] = valid.low
+    result.loc[:, 'lowlimit'] = result.pclose * 900
+    result.loc[:, 'highlimit'] = result.pclose * 1100
 
     # round all price to two decimal places
-    result.pclose = result.pclose.round(2)
-    result.plow = result.plow.round(2)
-    result.phigh = result.phigh.round(2)
-    result.plowlimit = result.plowlimit.round(2)
-    result.lowlimit = result.lowlimit.round(2)
-    result.highlimit = result.highlimit.round(2)
+    result.plow = result.plow.apply(round, ndigits=2)
+    result.phigh = result.phigh.apply(round, ndigits=2)
+    result.lowlimit = result.lowlimit.apply(round, ndigits=-1)
+    result.highlimit = result.highlimit.apply(round, ndigits=-1)
+    result.plowlimit = result.plowlimit.apply(round, ndigits=-1)
+    result.lowlimit= result.lowlimit / 1000
+    result.highlimit = result.highlimit / 1000
+    result.plowlimit = result.plowlimit / 1000
 
     #recover to valid index first
     result = result.set_index(y)
@@ -310,8 +319,6 @@ def prepareMediateFile():
     result = result.set_index(['date', 'code'])
     result = result.sort_index()
 
-
-
     groupbydate = result.groupby(level=0)
     df = groupbydate.apply(sort)
     df = df.reset_index(level=0, drop=True)
@@ -347,5 +354,5 @@ def Processing():
     holdings_log.to_csv('d:\\holdings_log.csv')
 
 #csvtoHDF()
-#prepareMediateFile()
+prepareMediateFile()
 Processing()
