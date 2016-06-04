@@ -1,9 +1,11 @@
 # -*- coding:utf-8 -*-
+
 import pandas as pd
 import sqlalchemy as sa
 import datetime
 from collections import namedtuple
 import numpy as np
+import cython
 
 import logging
 
@@ -13,7 +15,7 @@ summits = {}
 to_be_sell = []
 cash = 100000.0
 poolsize = 300
-alert = 0.9
+alert = 900
 st_pattern = r'^ST|^S|^\*ST|退市'
 ashare_pattern = r'^0|^3|^6'
 end_date = datetime.datetime(2008,1,10)
@@ -22,6 +24,7 @@ holdings_log = pd.DataFrame(columns=('date', 'code', 'ratio_buy', 'ratio_d', 'pr
 transaction_log = pd.DataFrame(columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio', 'fee'))
 
 MyStruct = namedtuple("MyStruct", "price volume code")
+
 
 def holdingNum():
     cnt =0
@@ -44,18 +47,6 @@ def updateDayPrcRatio(code, hfqratio, open):
         stock.ratio_d = hfqratio
         stock.price = open
 
-def allSell(code, date, row, type):
-    if (row.high - row.low) < 0.01 and (row.high - row.lowlimit) < 0.01:
-        #can't sell on low limit
-        return
-    if holdings.has_key(code):
-        to_be_sell.append(code)
-        stocks = holdings[code]
-        for stock in stocks:
-            sell(stock, row.open, date, row.hfqratio, type, row.pamo)
-    else:
-        print 'fail to sell ' + code + ' ' + str(date)
-
 def sell(stock, price, date, hfqratio, type, pamo):
     global cash
     ratio = stock.hfqratio / hfqratio
@@ -74,6 +65,18 @@ def sell(stock, price, date, hfqratio, type, pamo):
     #print 'sell ' + str(stock.code) + ', vol ' + str(stock.volume) + ', price ' + str(price)+' , ' + str(amount) + ' , ' + str(profit) + ', ' + str(stock.hfqratio)+ ', ' +'date ' + str(date)
     transaction_log.loc[len(transaction_log)] = (date, type, stock.code, amount/stock.volume, stock.volume, delta, profit, hfqratio, fee)
     #holdings.remove(stock)
+
+def allSell(code, date, row, type):
+    if (row.high - row.low) < 0.01 and (row.high - row.lowlimit) < 0.01:
+        #can't sell on low limit
+        return
+    if holdings.has_key(code):
+        to_be_sell.append(code)
+        stocks = holdings[code]
+        for stock in stocks:
+            sell(stock, row.open, date, row.hfqratio, type, row.pamo)
+    else:
+        print 'fail to sell ' + code + ' ' + str(date)
 
 
 def buy(code, price, margin, date, hfqratio, pmao):
@@ -123,6 +126,7 @@ def buy(code, price, margin, date, hfqratio, pmao):
     transaction_log.loc[len(transaction_log)] = (date, 'buy', code, inst.price, volume, inst.amount, 0, hfqratio, fee)
     cash = cash - inst.amount - fee
 
+
 def handle_day(x):
     #global holdings
     #global holdings_log
@@ -153,7 +157,7 @@ def handle_day(x):
                 allSell(code, date, row, 'open high')
                 continue
             # open less than alert line, sell
-            if row.open < adjSummit * alert:
+            if row.open < round(adjSummit * alert, -1) / 1000:
                 allSell(code, date, row, 'fallback')
                 continue
         except KeyError:
@@ -354,5 +358,5 @@ def Processing():
     holdings_log.to_csv('d:\\holdings_log.csv')
 
 #csvtoHDF()
-prepareMediateFile()
+#prepareMediateFile()
 Processing()
