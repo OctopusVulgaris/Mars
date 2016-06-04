@@ -18,6 +18,7 @@ poolsize = 300
 alert = 900
 st_pattern = r'^ST|^S|^\*ST|退市'
 ashare_pattern = r'^0|^3|^6'
+
 end_date = datetime.datetime(2008,1,10)
 
 holdings_log = pd.DataFrame(columns=('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash'))
@@ -54,7 +55,7 @@ def sell(stock, price, date, hfqratio, type, pamo):
     prevAmo = pamo * 0.005
     amount = price * stock.volume
     if amount > prevAmo:
-        vol1 = round(prevAmo / price, -2)
+        vol1 = int(prevAmo / price / 100) * 100
         vol2 = stock.volume - vol1
         amount = vol1 * price + vol2 * price *0.98
 
@@ -84,6 +85,7 @@ def buy(code, price, margin, date, hfqratio, pmao):
     global summit
     #global holdings
     #global transaction_log
+    margin = margin * 0.9992
     amo1 = 0
     amo2 = 0
     prevAmo = pmao * 0.005
@@ -91,12 +93,12 @@ def buy(code, price, margin, date, hfqratio, pmao):
     tmpvol = 0
     #print 'buy ' + str(code) + ', vol ' + str(margin) + ', price ' + str(price) + ', date ' + str(date)
     if margin > pmao:
-        volume = round(prevAmo / price, -2)
-        tmpvol = round((margin - prevAmo) / (price * 1.02), -2)
+        volume = int(prevAmo / price / 100) * 100
+        tmpvol = int((margin - prevAmo) / (price * 1.02) / 100) * 100
         amo1 = price * volume
         amo2 = price * 1.02 * tmpvol
     else:
-        volume = round(margin / price, -2)
+        volume = int(margin / price / 100) * 100
         amo1 = price * volume
     volume = volume + tmpvol
 
@@ -136,7 +138,7 @@ def handle_day(x):
     for code in holdings.keys():
         try:
             pos = x.index.get_loc((date, code))
-            row = x.ix[pos]
+            row = x.iloc[pos]
             updateDayPrcRatio(code, row.hfqratio, row.open)
             # total cap out of rank 300, sell
             if not pos < 300:
@@ -197,19 +199,20 @@ def handle_day(x):
 
 
 def sort(x):
+
     x = x.sort_values('ptotalcap', ascending=True)
 
     # check st, final true is ready to buy
-    x.loc[:, 'buyflag'] = x.name.str.contains(st_pattern)
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] != True
+    x['buyflag'] = x.name.str.contains(st_pattern)
+    x['buyflag'] = x.buyflag != True
     # open on this day
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.open > 0.01)
+    x['buyflag'] = x.buyflag & (x.open > 0.01)
     # open low , but not over prev low limit and don't reach today low limit
     # if halt yesterday, low == 0, this case don't buy
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.open < x.plow)
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.open > x.lowlimit)
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.open > x.plowlimit)
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.hfqratio >= 1)
+    x['buyflag'] = x.buyflag & (x.open < x.plow)
+    x['buyflag'] = x.buyflag & (x.open > x.lowlimit)
+    x['buyflag'] = x.buyflag & (x.open > x.plowlimit)
+    x['buyflag'] = x.buyflag & (x.hfqratio >= 1)
 
     return x
 
@@ -226,37 +229,37 @@ def calc(x):
 
     result = pd.DataFrame()
     # yesterday
-    result.loc[:, 'hfqratio'] = valid.hfqratio
-    result.loc[:, 'phfqratio'] = valid.index - 1
-    result.loc[:, 'phfqratio'] = result.phfqratio.map(valid.hfqratio)
-    result.loc[:, 'pphfq'] = valid.index - 2
-    result.loc[:, 'pphfq'] = result.pphfq.map(valid.hfqratio)
+    result['hfqratio'] = valid.hfqratio
+    result['phfqratio'] = valid.index - 1
+    result['phfqratio'] = result.phfqratio.map(valid.hfqratio)
+    result['pphfq'] = valid.index - 2
+    result['pphfq'] = result.pphfq.map(valid.hfqratio)
     factor = result.phfqratio / result.hfqratio
-    result.loc[:, 'pclose'] = valid.index - 1
-    result.loc[:, 'pclose'] = result.pclose.map(valid.close)
-    result.loc[:, 'pclose'] = result.pclose * factor
-    result.loc[:, 'plow'] = valid.index - 1
-    result.loc[:, 'plow'] = result.plow.map(valid.low)
-    result.loc[:, 'plow'] = result.plow * factor
-    result.loc[:, 'phigh'] = valid.index - 1
-    result.loc[:, 'phigh'] = result.phigh.map(valid.high)
-    result.loc[:, 'phigh'] = result.phigh * factor
-    result.loc[:, 'pamo'] = valid.index - 1
-    result.loc[:, 'pamo'] = result.pamo.map(valid.amo)
+    result['pclose'] = valid.index - 1
+    result['pclose'] = result.pclose.map(valid.close)
+    result['pclose'] = result.pclose * factor
+    result['plow'] = valid.index - 1
+    result['plow'] = result.plow.map(valid.low)
+    result['plow'] = result.plow * factor
+    result['phigh'] = valid.index - 1
+    result['phigh'] = result.phigh.map(valid.high)
+    result['phigh'] = result.phigh * factor
+    result['pamo'] = valid.index - 1
+    result['pamo'] = result.pamo.map(valid.amo)
     factor = result.pphfq / result.hfqratio
-    result.loc[:, 'plowlimit'] = valid.index - 2
-    result.loc[:, 'plowlimit'] = result.plowlimit.map(valid.close)
-    result.loc[:, 'plowlimit'] = result.plowlimit * factor
-    result.loc[:, 'plowlimit'] = result.plowlimit * 900
+    result['plowlimit'] = valid.index - 2
+    result['plowlimit'] = result.plowlimit.map(valid.close)
+    result['plowlimit'] = result.plowlimit * factor
+    result['plowlimit'] = result.plowlimit * 900
 
     # on day data, value not exist for halt
     #result.loc[:, 'name'] = valid.name
     result.pclose = result.pclose.apply(round, ndigits=2)
-    result.loc[:, 'open'] = valid.open
-    result.loc[:, 'high'] = valid.high
-    result.loc[:, 'low'] = valid.low
-    result.loc[:, 'lowlimit'] = result.pclose * 900
-    result.loc[:, 'highlimit'] = result.pclose * 1100
+    result['open'] = valid.open
+    result['high'] = valid.high
+    result['low'] = valid.low
+    result['lowlimit'] = result.pclose * 900
+    result['highlimit'] = result.pclose * 1100
 
     # round all price to two decimal places
     result.plow = result.plow.apply(round, ndigits=2)
@@ -274,12 +277,12 @@ def calc(x):
     result = result.reindex(x.index, fill_value=0)
 
     # on day data, value exist no matter haltx
-    result.loc[:, 'ptotalcap'] = x.index - 1
-    result.loc[:, 'ptotalcap'] = result.ptotalcap.map(x.totalcap)
+    result['ptotalcap'] = x.index - 1
+    result['ptotalcap'] = result.ptotalcap.map(x.totalcap)
 
-    result.loc[:, 'name'] = x.name
+    result['name'] = x.name
     #result.loc[:, 'totalcap'] = x.totalcap
-    result.loc[:, 'hfqratio'] = x.hfqratio
+    result['hfqratio'] = x.hfqratio
     #recover to date index
     result = result.set_index(z)
     return result
@@ -307,6 +310,7 @@ def prepareMediateFile():
     df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf','day')
     df = df[df.code.str.contains(ashare_pattern)]
 
+
     print len(df)
 
     df.sort_index(inplace=True)
@@ -317,6 +321,7 @@ def prepareMediateFile():
     print 'calculating...'
     result = groupbycode.apply(calc)
 
+    result = result[result.name.str.startswith('N') != True]
     result = result.reset_index()
 
     print result.columns
@@ -324,6 +329,7 @@ def prepareMediateFile():
     result = result.sort_index()
 
     groupbydate = result.groupby(level=0)
+
     df = groupbydate.apply(sort)
     df = df.reset_index(level=0, drop=True)
 
