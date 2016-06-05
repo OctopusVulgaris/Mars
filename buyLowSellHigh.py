@@ -359,11 +359,11 @@ def Processing():
     t1 = datetime.datetime.now()
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day')
-    df = df.loc[datetime.datetime(2008, 1, 7, ):, :]
     print datetime.datetime.now()- t1
+    df = df.loc[datetime.datetime(2008, 1, 7, ):, :]
     groupbydate = df.groupby(level=0)
     groupbydate.apply(handle_day)
-    print datetime.datetime.now() - t1
+
     print 'cash: ' + str(cash)
     t_log = pd.DataFrame(transaction_log)
     t_log.columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio', 'fee')
@@ -378,6 +378,7 @@ def Processing():
     aa.reindex(h_log.index, method='bfill')
     h_log['total'] = h_log.cash + aa
     h_log.to_csv('d:\\holdings_log.csv')
+    print datetime.datetime.now() - t1
 
 #csvtoHDF()
 #prepareMediateFile()
