@@ -10,6 +10,7 @@ import cython
 import logging
 
 max_holdings = 10
+holding_cnt = 0
 holdings = {}
 summits = {}
 to_be_sell = []
@@ -20,11 +21,13 @@ st_pattern = r'^ST|^S|^\*ST|退市'
 ashare_pattern = r'^0|^3|^6'
 
 end_date = datetime.datetime(2008,1,10)
+tax_date = datetime.datetime(2008,9,19)
 
-holdings_log = pd.DataFrame(columns=('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash'))
-transaction_log = pd.DataFrame(columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio', 'fee'))
-
-MyStruct = namedtuple("MyStruct", "price volume code")
+holdings_log = []
+transaction_log = []
+#holdings_log = pd.DataFrame(columns=('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash'))
+#transaction_log = pd.DataFrame(columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio',
+# 'fee'))
 
 
 def holdingNum():
@@ -50,6 +53,7 @@ def updateDayPrcRatio(code, hfqratio, open):
 
 def sell(stock, price, date, hfqratio, type, pamo):
     global cash
+    #global holding_cnt
     ratio = stock.hfqratio / hfqratio
     stock.volume = stock.volume * ratio
     prevAmo = pamo * 0.005
@@ -64,8 +68,9 @@ def sell(stock, price, date, hfqratio, type, pamo):
     delta = amount - fee
     cash = cash + delta
     #print 'sell ' + str(stock.code) + ', vol ' + str(stock.volume) + ', price ' + str(price)+' , ' + str(amount) + ' , ' + str(profit) + ', ' + str(stock.hfqratio)+ ', ' +'date ' + str(date)
-    transaction_log.loc[len(transaction_log)] = (date, type, stock.code, amount/stock.volume, stock.volume, delta, profit, hfqratio, fee)
-    #holdings.remove(stock)
+    #holding_cnt -= 1
+    transaction_log.append((date, type, stock.code, amount/stock.volume, stock.volume, delta,  profit, hfqratio, fee))
+
 
 def allSell(code, date, row, type):
     if (row.high - row.low) < 0.01 and (row.high - row.lowlimit) < 0.01:
@@ -83,9 +88,13 @@ def allSell(code, date, row, type):
 def buy(code, price, margin, date, hfqratio, pmao):
     global cash
     global summit
-    #global holdings
-    #global transaction_log
-    margin = margin * 0.9992
+    #global holding_cnt
+    factor = 1.0
+    if date < tax_date:
+        factor = 0.0018
+    else:
+        factor = 0.0008
+    margin = margin * (1 - factor)
     amo1 = 0
     amo2 = 0
     prevAmo = pmao * 0.005
@@ -103,7 +112,7 @@ def buy(code, price, margin, date, hfqratio, pmao):
     volume = volume + tmpvol
 
     if volume < 100:
-        print 'vol less than 100 ' + str(code) + ' ' + str(date)
+        #print 'vol less than 100 ' + str(code) + ' ' + str(date)
         return
     inst = instrument()
     inst.amount = amo1 + amo2
@@ -124,9 +133,11 @@ def buy(code, price, margin, date, hfqratio, pmao):
     else:
         holdings[code] = [inst]
 
-    fee = inst.amount * 0.0008
-    transaction_log.loc[len(transaction_log)] = (date, 'buy', code, inst.price, volume, inst.amount, 0, hfqratio, fee)
+    fee = inst.amount * factor + + volume / 1000 * 0.6
+    #transaction_log.loc[len(transaction_log)] = (date, 'buy', code, inst.price, volume, inst.amount, 0, hfqratio, fee)
+    transaction_log.append((date, 'buy', code, inst.price, volume, inst.amount, 0, hfqratio, fee))
     cash = cash - inst.amount - fee
+    #holding_cnt += 1
 
 
 def handle_day(x):
@@ -194,7 +205,9 @@ def handle_day(x):
     #log
     for rows in holdings.values():
         for stock in rows:
-            holdings_log.loc[len(holdings_log)] = (date, stock.code, stock.hfqratio, stock.ratio_d, stock.price, stock.volume, stock.amount, cash)
+            #holdings_log.loc[len(holdings_log)] = (date, stock.code, stock.hfqratio, stock.ratio_d, stock.price,
+    # stock.volume, stock.amount, cash)
+            holdings_log.append((date, stock.code, stock.hfqratio, stock.ratio_d, stock.price, stock.volume, stock.amount, cash))
 
 
 
@@ -352,16 +365,19 @@ def Processing():
     groupbydate.apply(handle_day)
     print datetime.datetime.now() - t1
     print 'cash: ' + str(cash)
-    transaction_log.to_csv('d:\\transaction_log.csv')
-    global holdings_log
-    holdings_log.vol = holdings_log.vol * holdings_log.ratio_d
-    holdings_log.vol = holdings_log.vol / holdings_log.ratio_buy
-    holdings_log.amount = holdings_log.price * holdings_log.vol
-    aa = holdings_log.groupby('date')['amount'].sum()
-    holdings_log = holdings_log.set_index('date')
-    aa.reindex(holdings_log.index, method='bfill')
-    holdings_log['total'] = holdings_log.cash + aa
-    holdings_log.to_csv('d:\\holdings_log.csv')
+    t_log = pd.DataFrame(transaction_log)
+    t_log.columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio', 'fee')
+    t_log.to_csv('d:\\transaction_log.csv')
+    h_log = pd.DataFrame(holdings_log)
+    h_log.columns = ('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash')
+    h_log.vol = h_log.vol * h_log.ratio_d
+    h_log.vol = h_log.vol / h_log.ratio_buy
+    h_log.amount = h_log.price * h_log.vol
+    aa = h_log.groupby('date')['amount'].sum()
+    h_log = h_log.set_index('date')
+    aa.reindex(h_log.index, method='bfill')
+    h_log['total'] = h_log.cash + aa
+    h_log.to_csv('d:\\holdings_log.csv')
 
 #csvtoHDF()
 #prepareMediateFile()
