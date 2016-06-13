@@ -8,6 +8,8 @@ import numpy as np
 import cython
 
 import logging
+import talib as ta
+ta.MA()
 
 max_holdings = 10
 holding_cnt = 0
@@ -69,7 +71,7 @@ def sell(stock, price, date, hfqratio, type, pamo):
     cash = cash + delta
     #print 'sell ' + str(stock.code) + ', vol ' + str(stock.volume) + ', price ' + str(price)+' , ' + str(amount) + ' , ' + str(profit) + ', ' + str(stock.hfqratio)+ ', ' +'date ' + str(date)
     #holding_cnt -= 1
-    transaction_log.append((date, type, stock.code, amount/stock.volume, stock.volume, delta,  profit, hfqratio, fee))
+    transaction_log.append((date, type, stock.code, amount/stock.volume, stock.volume, amount,  profit, hfqratio, fee))
 
 
 def allSell(code, date, row, type):
@@ -300,6 +302,12 @@ def calc(x):
     result = result.set_index(z)
     return result
 
+def GetTotalCapIndex(x):
+    x = x.sort_values('totalcap')
+    x = x.head(int(len(x) / 10))
+    return x.totalcap.sum() / 100000
+
+
 def csvtoHDF():
     t1 = datetime.datetime.now()
     print 'reading...'
@@ -355,6 +363,19 @@ def prepareMediateFile():
     print len(df)
     print datetime.datetime.now() - t1
 
+def ComputeCustomIndex():
+    t1 = datetime.datetime.now()
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
+    df = df[df.code.str.contains(ashare_pattern)]
+
+    print datetime.datetime.now()- t1
+    groupbydate = df.groupby(level=0)
+    df = groupbydate.apply(GetTotalCapIndex)
+
+    df.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='t', complib='blosc')
+
+    print datetime.datetime.now() - t1
+
 def Processing():
     t1 = datetime.datetime.now()
     print 'reading...'
@@ -380,6 +401,10 @@ def Processing():
     h_log.to_csv('d:\\holdings_log.csv')
     print datetime.datetime.now() - t1
 
+
+
+
 #csvtoHDF()
 #prepareMediateFile()
-Processing()
+#Processing()
+ComputeCustomIndex()
