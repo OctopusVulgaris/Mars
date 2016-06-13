@@ -9,7 +9,7 @@ import cython
 
 import logging
 import talib as ta
-ta.MA()
+
 
 max_holdings = 10
 holding_cnt = 0
