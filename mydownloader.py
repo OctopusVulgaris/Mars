@@ -6,10 +6,14 @@ import os
 import tushare as ts
 import pandas as pd
 import dataloader
+import json
+import re
 from lxml import etree
 from StringIO import StringIO
 from dataloader import engine
 import pandas.io.sql as psql
+import tushare as ts
+import argparse
 
 from sqlalchemy import Date, text, DateTime, Integer
 import psycopg2
@@ -22,7 +26,7 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%a, %d %b %Y %H:%M:%S',
                     filename='log.txt'
                     )
-conn = psycopg2.connect(database="postgres", user="postgres", password="postgres", host="localhost", port="5432")
+conn = psycopg2.connect(database="postgres", user="postgres", password="Wcp181114", host="localhost", port="5432")
 cur = conn.cursor()
 proxies = {
     'http': 'http://10.23.31.130:8080',
@@ -249,21 +253,21 @@ def get_bonus_and_ri(code, timeout=60):
         if (binfo['rdate'] == '--'):
             binfo['rdate'] = '1900-1-1'
         write_bonus_to_db(binfo)
-        df = pd.DataFrame()
-        df = df.from_dict(binfo, orient='index')
-        dfs.append(df.T)
-    df = pd.DataFrame()
-    df = pd.concat(dfs)
-    df.adate = pd.to_datetime(df.adate)
-    df.xdate = pd.to_datetime(df.xdate)
-    df.rdate = pd.to_datetime(df.rdate)
-    df.give = pd.to_numeric(df.give)
-    df.trans = pd.to_numeric(df.trans)
-    df.divpay = pd.to_numeric(df.divpay)
-    print df.dtypes
-    print 'b'
-    print df
-    df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+    #     df = pd.DataFrame()
+    #     df = df.from_dict(binfo, orient='index')
+    #     dfs.append(df.T)
+    # df = pd.DataFrame()
+    # df = pd.concat(dfs)
+    # df.adate = pd.to_datetime(df.adate)
+    # df.xdate = pd.to_datetime(df.xdate)
+    # df.rdate = pd.to_datetime(df.rdate)
+    # df.give = pd.to_numeric(df.give)
+    # df.trans = pd.to_numeric(df.trans)
+    # df.divpay = pd.to_numeric(df.divpay)
+    # print df.dtypes
+    # print 'b'
+    # print df
+    # df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
 
 
     dfs1 = []
@@ -287,21 +291,21 @@ def get_bonus_and_ri(code, timeout=60):
             rinfo['rdate'] = '1900-1-1'
         rinfo['code'] = code
         write_ri_to_db(rinfo)
-        df = pd.DataFrame()
-        df = df.from_dict(rinfo, orient='index')
-        dfs1.append(df.T)
-    df = pd.concat(dfs1)
-    df.adate = pd.to_datetime(df.adate)
-    df.xdate = pd.to_datetime(df.xdate)
-    df.rdate = pd.to_datetime(df.rdate)
-    df.ri = pd.to_numeric(df.ri)
-    df.riprice = pd.to_numeric(df.riprice)
-    df.basecap = pd.to_numeric(df.basecap)
-    print df.dtypes
-    print 'r'
-    print df
-
-    df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+    #     df = pd.DataFrame()
+    #     df = df.from_dict(rinfo, orient='index')
+    #     dfs1.append(df.T)
+    # df = pd.concat(dfs1)
+    # df.adate = pd.to_datetime(df.adate)
+    # df.xdate = pd.to_datetime(df.xdate)
+    # df.rdate = pd.to_datetime(df.rdate)
+    # df.ri = pd.to_numeric(df.ri)
+    # df.riprice = pd.to_numeric(df.riprice)
+    # df.basecap = pd.to_numeric(df.basecap)
+    # print df.dtypes
+    # print 'r'
+    # print df
+    #
+    # df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
 
 
 def is_digit_or_point(c):
@@ -340,22 +344,22 @@ def get_stock_change(code, timeout=60):
             sinfo['prevts'] = prev_tradeable_share
             prev_tradeable_share = sinfo['tradeshare']
             write_stockchange_to_db(sinfo)
-            df = pd.DataFrame()
-            df = df.from_dict(sinfo, orient='index')
-            dfs.append(df.T)
-    df = pd.DataFrame()
-    df = pd.concat(dfs)
-    df.adate = pd.to_datetime(df.adate)
-    df.xdate = pd.to_datetime(df.xdate)
-    df.totalshare = pd.to_numeric(df.totalshare)
-    df.tradeshare = pd.to_numeric(df.tradeshare)
-    df.limitshare = pd.to_numeric(df.limitshare)
-    df.prevts = pd.to_numeric(df.prevts)
-    df.reason = df.reason.str.encode('utf-8')
-    print df.dtypes
-    print 's'
-    print df
-    df.to_hdf('d:\\HDF5_Data\\sinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+    #         df = pd.DataFrame()
+    #         df = df.from_dict(sinfo, orient='index')
+    #         dfs.append(df.T)
+    # df = pd.DataFrame()
+    # df = pd.concat(dfs)
+    # df.adate = pd.to_datetime(df.adate)
+    # df.xdate = pd.to_datetime(df.xdate)
+    # df.totalshare = pd.to_numeric(df.totalshare)
+    # df.tradeshare = pd.to_numeric(df.tradeshare)
+    # df.limitshare = pd.to_numeric(df.limitshare)
+    # df.prevts = pd.to_numeric(df.prevts)
+    # df.reason = df.reason.str.encode('utf-8')
+    # print df.dtypes
+    # print 's'
+    # print df
+    # df.to_hdf('d:\\HDF5_Data\\sinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
 
 def convertNone(c):
     if(c == 'None' or c == 'null' or c== 'NULL'):
@@ -363,35 +367,13 @@ def convertNone(c):
     else:
         return c
 
-def get_stock_full_daily_data(code, timeout=60):
-    if code[0] == '6':
-        url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
-    else:
-        url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
-
-    r = requests.get(url, timeout=timeout)
-    data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期', parse_dates=True)
-    data.index.names = ['date']
-    if not data.empty:
-        data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo','totalcap','tradeablecap']
-        data['code'] = pd.Series(code, index=data.index)
-        data['netchng'] = data['netchng'].apply(convertNone)
-        data['pctchng'] = data['pctchng'].apply(convertNone)
-        data['turnoverrate'] = data['turnoverrate'].apply(convertNone)
-        #data.to_sql('dailydata', engine, if_exists='append', index=True)
-        #name=code+'.csv'
-        #data.to_csv(name, encoding='utf-8')
-
-    sql = "select * from bonus_ri_sc where code=\'" + code + "\' and xdate!='1900-1-1' and (type='bonus' or type='rightsissue' or (type='stockchange' and reason='股权分置')) order by xdate asc, totalshare desc"
-    bsr = pd.read_sql(sql, engine)
-
-    bsr['preclose'] = pd.Series(0.0, index=bsr.index)
-    bsr['hfqratio'] = pd.Series(0.0, index=bsr.index)
+def calc_hfqratio(data, bsr, initHfqRatio=1):
+    lastestHfqRatio = initHfqRatio
     index = 0
     for row in bsr.itertuples():
         exdate_valid_flag = 1
         try:
-            if data.ix[row[10]]['close'] == 0.0:
+            if data.ix[row[10]]['close'] - 0.0 < 0.0000001:
                 exdate_valid_flag = 0
         except KeyError, e:
             exdate_valid_flag = 0
@@ -404,7 +386,7 @@ def get_stock_full_daily_data(code, timeout=60):
             while True:
                 rr = enddate
                 rr += delta
-                rdata = data[:rr].tail(5)
+                rdata = data[:rr].tail(1)
                 if rdata.empty:
                     break
                 else:
@@ -435,7 +417,7 @@ def get_stock_full_daily_data(code, timeout=60):
         while True:
             rr = enddate
             rr -= delta
-            rdata = data[ rr:].head(30)
+            rdata = data[ rr:].head(1)
             if rdata.empty:
                 cls = 0.0
                 break
@@ -460,7 +442,7 @@ def get_stock_full_daily_data(code, timeout=60):
     bsr.reset_index(inplace=True)
     #print bsr
     index = 0
-    prev_hfqratio = 1
+    prev_hfqratio = lastestHfqRatio
     prev_type = ''
     prev_xdate = datetime.date(1900, 1, 1)
     for row in bsr.itertuples():
@@ -470,11 +452,18 @@ def get_stock_full_daily_data(code, timeout=60):
             continue
 
         if row[16] != 'stockchange':
-            adjcls = (cls - bsr.loc[index,'paydiv'] / 10 + bsr.loc[index,'riprice'] * bsr.loc[index,'ri'] / 10) / (1 + bsr.loc[index,'give'] / 10 + bsr.loc[index,'transfer'] / 10 + bsr.loc[index,'ri'] / 10)
-            #adjcls = (cls - row[5] / 10 + row[7] * row[6] / 10) / (1 + row[3] / 10 + row[4] / 10 + row[6] / 10)
-            hfqratio = cls / adjcls
+            if bsr.loc[index,'preclose'] != 0.0:
+                adjcls = (bsr.loc[index,'preclose'] - bsr.loc[index,'paydiv'] / 10 + bsr.loc[index,'riprice'] * bsr.loc[index,'ri'] / 10) / (1 + bsr.loc[index,'give'] / 10 + bsr.loc[index,'transfer'] / 10 + bsr.loc[index,'ri'] / 10)
+                #adjcls = (cls - row[5] / 10 + row[7] * row[6] / 10) / (1 + row[3] / 10 + row[4] / 10 + row[6] / 10)
+                adjcls = round(adjcls * 100) / 100
+                hfqratio = bsr.loc[index,'preclose'] / adjcls
+            else:
+                hfqratio = lastestHfqRatio
         else:
-            hfqratio = bsr.loc[index,'tradeshare'] / bsr.loc[index,'prevts']
+            if bsr.loc[index,'tradeshare'] != 0 and bsr.loc[index,'prevts'] != 0:
+                hfqratio = bsr.loc[index,'tradeshare'] / bsr.loc[index,'prevts']
+            else:
+                hfqratio = lastestHfqRatio
         hfqratio = round(hfqratio, 6)
         bsr.loc[index, 'hfqratio'] = round(prev_hfqratio * hfqratio, 6)
         prev_hfqratio = bsr.loc[index, 'hfqratio']
@@ -483,21 +472,48 @@ def get_stock_full_daily_data(code, timeout=60):
 
         index += 1
     #data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期',parse_dates=True)
-    data['hfqratio'] = pd.Series(0.0, index=data.index)
+    data['hfqratio'] = pd.Series(lastestHfqRatio, index=data.index)
     logging.info(bsr)
     print bsr
 
     prevdate = datetime.date(1900,1,1)
-    prevratio= 1.000
+    prevratio= lastestHfqRatio
     for row in bsr.itertuples():
         currentdate=row[11]
         data.loc[currentdate:prevdate,'hfqratio'] = prevratio
         prevdate=currentdate
         prevratio=row[19]
-    today = datetime.datetime.now()
-    data.loc[today:prevdate, 'hfqratio'] = prevratio
-    #print data.to_csv('test.csv', encoding='utf-8')
+    if not bsr.empty:
+        today = datetime.datetime.now().date()
+        data.loc[today:prevdate, 'hfqratio'] = prevratio
+        #print data.to_csv('test.csv', encoding='utf-8')
 
+def get_stock_full_daily_data(code, timeout=60):
+    if code[0] == '6':
+        url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
+    else:
+        url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
+
+    r = requests.get(url, timeout=timeout)
+    data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期', parse_dates=True)
+    data.index.names = ['date']
+    if not data.empty:
+        data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo','totalcap','tradeablecap']
+        data['code'] = pd.Series(code, index=data.index)
+        data['netchng'] = data['netchng'].apply(convertNone)
+        data['pctchng'] = data['pctchng'].apply(convertNone)
+        data['turnoverrate'] = data['turnoverrate'].apply(convertNone)
+        #data.to_sql('dailydata', engine, if_exists='append', index=True)
+        #name=code+'.csv'
+        #data.to_csv(name, encoding='utf-8')
+
+    sql = "select * from bonus_ri_sc where code=\'" + code + "\' and xdate!='1900-1-1' and (type='bonus' or type='rightsissue' or (type='stockchange' and (reason='股权分置' or reason='拆细'))) order by xdate asc, totalshare desc"
+    bsr = pd.read_sql(sql, engine)
+
+    bsr['preclose'] = pd.Series(0.0, index=bsr.index)
+    bsr['hfqratio'] = pd.Series(0.0, index=bsr.index)
+
+    calc_hfqratio(data, bsr)
 
     if not data.empty:
         #data.drop(u'前收盘',1, inplace=True)
@@ -505,39 +521,40 @@ def get_stock_full_daily_data(code, timeout=60):
         #data['code'] = pd.Series(code, index=data.index)
         #data['netchng'] = data['netchng'].apply(convertNone)
         #data['pctchng'] = data['pctchng'].apply(convertNone)
-
-        #data.to_sql('dailydata', engine, if_exists='append', index=True)
-        data['codeutf'] = 'utf8'
-        data['nameutf'] = 'utf8'
-        data.nameutf = data.name.str.encode('utf-8')
-        data.codeutf = data.code.str.encode('utf-8')
-        del data['code']
-        del data['name']
-
-        data.columns = ['close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo',
-                        'totalcap','tradeablecap', 'code','name']
-        data.to_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+        data.to_sql('dailydata', engine, if_exists='append', index=True)
+        # data['codeutf'] = 'utf8'
+        # data['nameutf'] = 'utf8'
+        # data.nameutf = data.name.str.encode('utf-8')
+        # data.codeutf = data.code.str.encode('utf-8')
+        # del data['code']
+        # del data['name']
+        #
+        # data.columns = ['close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo',
+        #                 'totalcap','tradeablecap', 'code','name']
+        # data.to_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
 
 def get_all_full_daily_data(retry=50, pause=10):
     target_list = dataloader.get_code_list('', '', engine)
     #llen = len(target_list)
     itr = target_list.itertuples()
-    row = next(itr)
-    while row:
-        for _ in range(retry):
-            try:
-                get_bonus_and_ri(row.code.encode("utf-8"))
-                get_stock_change(row.code.encode("utf-8"))
-                get_stock_full_daily_data(row.code.encode("utf-8"))
-            except Exception as e:
-                err = 'Error %s' % e
-                logging.info('Error %s' % e)
-                time.sleep(pause)
-            else:
-                logging.info('get daily data for %s successfully' % row.code.encode("utf-8"))
-                break
+    try:
         row = next(itr)
-
+        while row:
+            for _ in range(retry):
+                try:
+                    get_bonus_and_ri(row.code.encode("utf-8"))
+                    get_stock_change(row.code.encode("utf-8"))
+                    get_stock_full_daily_data(row.code.encode("utf-8"))
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get daily data for %s successfully' % row.code.encode("utf-8"))
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
 
 def update_weekly_data():
     full_df = pd.DataFrame()
@@ -606,14 +623,250 @@ def get_all_full_index_daily(retry=50, pause=10):
                 break
         row = next(itr)
 
+def close_check(row):
+    if row.open - 0.0 < 0.000001:
+        row.close = 0.0
+    row.totalcap *= 10000
+    row.tradeablecap *= 10000
+    return row
+
+def get_today_all_from_sina(retry=50, pause=10):
+    #please take note::
+    #change tushare to add pricechange
+    #added by andy
+    df = ts.get_today_all()
+    #print df
+
+    df.columns = ['code', 'name', 'netchng','pctchng', 'close', 'open', 'high', 'low', 'prevclose', 'vol','turnoverrate', 'amo', 'per','pb','totalcap', 'tradeablecap']
+    df.drop('per', 1, inplace=True)
+    df.drop('pb', 1, inplace=True)
+    df.to_csv('t1.csv', encoding='utf-8')
+    df = df.apply(close_check, axis=1)
+    df.to_csv('t2.csv', encoding='utf-8')
+    #print df
+    today = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+
+    df['date'] = pd.Series(today, index=df.index)
+    #print df
+    df.to_sql('dailydata', engine, if_exists='append', index=False)
+
+    target_list = dataloader.get_code_list('', '', engine)
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    #get_bonus_and_ri(row.code.encode("utf-8"))
+                    #get_stock_change(row.code.encode("utf-8"))
+                    #get_stock_full_daily_data(row.code.encode("utf-8"))
+                    update_today_data(row.code.encode("utf-8"))
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get today\'s data for %s successfully' % row.code.encode("utf-8"))
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
+def get_bonus_ri_sc(retry=50, pause=10):
+    target_list = dataloader.get_code_list('', '', engine)
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    get_bonus_and_ri(row.code.encode("utf-8"))
+                    get_stock_change(row.code.encode("utf-8"))
+                    pass
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get today\'s bonus data for %s successfully' % row.code.encode("utf-8"))
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
+def get_today_all_from_163(retry=50, pause=10):
+    target_list = dataloader.get_code_list('', '', engine)
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    #get_bonus_and_ri(row.code.encode("utf-8"))
+                    #get_stock_change(row.code.encode("utf-8"))
+                    get_delta_daily_data(row.code.encode("utf-8"))
+                    # update_today_data(row.code.encode("utf-8"))
+                    pass
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get today\'s data for %s successfully' % row.code.encode("utf-8"))
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
+def get_delta_daily_data(code, timeout=60):
+    sql = "select * from dailydata where code=\'" + code + "\' and open != 0.0 and hfqratio > 1.0 order by date desc limit 1"
+    ddata = pd.read_sql(sql, engine, index_col=['date'], parse_dates=True)
+    if ddata.empty:
+        sql = "select * from dailydata where code=\'" + code + "\' and open != 0.0 and hfqratio = 1.0 order by date desc limit 1"
+        ddata = pd.read_sql(sql, engine, index_col=['date'], parse_dates=True)
+        if ddata.empty:
+            return
+
+    date = ddata.index[0]
+    lastestHfqRatio = ddata.ix[0]['hfqratio']
+
+    sdate = date.strftime('%Y%m%d')
+    edate = datetime.datetime.now().strftime('%Y%m%d')
+    if code[0] == '6':
+        url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
+    else:
+        url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
+
+    r = requests.get(url, timeout=timeout)
+    data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期', parse_dates=True)
+    data.index.names = ['date']
+    if not data.empty:
+        data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo','totalcap','tradeablecap']
+        data['code'] = pd.Series(code, index=data.index)
+        data['netchng'] = data['netchng'].apply(convertNone)
+        data['pctchng'] = data['pctchng'].apply(convertNone)
+        data['turnoverrate'] = data['turnoverrate'].apply(convertNone)
+        data['hfqratio'] = pd.Series(lastestHfqRatio, index=data.index)
+
+    sql = "select * from bonus_ri_sc where code=\'" + code + "\' and xdate> \'"+ str(sdate) + "\' and xdate <= \'" + edate + "\' and (type='bonus' or type='rightsissue' or (type='stockchange' and (reason='股权分置' or reason='拆细'))) order by xdate asc, totalshare desc"
+    bsr = pd.read_sql(sql, engine)
+
+    if not bsr.empty:
+        date1 = data.index[0].date()
+        date2 = bsr.xdate.iloc[-1]
+        if date2 > date1:
+            if not data.empty:
+                print data
+                data.to_sql('dailydata', engine, if_exists='append', index=True)
+                return
+
+    bsr['preclose'] = pd.Series(0.0, index=bsr.index)
+    bsr['hfqratio'] = pd.Series(lastestHfqRatio, index=bsr.index)
+    calc_hfqratio(data, bsr, lastestHfqRatio)
+
+    if not data.empty:
+        # data.drop(u'前收盘',1, inplace=True)
+        # data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo','totalcap','tradeablecap','hfqratio']
+        # data['code'] = pd.Series(code, index=data.index)
+        # data['netchng'] = data['netchng'].apply(convertNone)
+        # data['pctchng'] = data['pctchng'].apply(convertNone)
+        data.to_sql('dailydata', engine, if_exists='append', index=True)
+        #pass
+
+def update_today_data(code, timeout=60):
+    today = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+    sql = "select * from dailydata where date=\'" + today + "\' and code=\'" + code + "\' and hfqratio = 1.0"
+    data1 = pd.read_sql(sql, engine, index_col=['date'], parse_dates=True)
+    #if no data in db for today, return
+    if data1.empty:
+        return
+
+    #if data1.index[0] == data2.index[0]:
+    #    return
+
+    #if data1.open.iloc[0] - 0.0 < 0.0000001:
+    #    sql = "select * from dailydata where code=\'" + code + "\' and ( date=\'" + today + "\' or( date<\'" + today + "\' and  hfqratio != 0)) order by date desc limit 1"
+
+    sql = "select * from dailydata where code=\'" + code + "\' and ( date=\'" + today + "\' or( date<\'" + today + "\' and  open != 0)) order by date desc limit 2"
+    #sql = "select * from dailydata where code=\'" + code + "\' and (date<\'" + today + "\' and  open != 0) order by date desc limit 1"
+    data = pd.read_sql(sql, engine, index_col=['date'], parse_dates=True)
+
+    #data = data1.append(data2)
+
+    #if all hfqration in db is 1, no change, return
+    lastestHfqRatio = data.hfqratio.iloc[-1]
+    if  lastestHfqRatio - 1.0 < 0.0000001:
+        return
+
+    #if data1.open.iloc[0] - 0.0 < 0.0000001:
+    #    data1.hfqratio = lastestHfqRatio
+    #    data1.to_sql('dailydata', engine, if_exists='append', index=True)
+    #    return
+
+    data.hfqratio=lastestHfqRatio
+    print data
+    date = data.index[1]
+    sdate = date.strftime('%Y%m%d')
+    edate = datetime.datetime.now().strftime('%Y%m%d')
+
+    sql = "select * from bonus_ri_sc where code=\'" + code + "\' and xdate> \'"+ str(sdate) + "\' and xdate <= \'" + edate + "\' and (type='bonus' or type='rightsissue' or (type='stockchange' and (reason='股权分置' or reason='拆细'))) order by xdate asc, totalshare desc"
+    bsr = pd.read_sql(sql, engine)
+
+    if not bsr.empty:
+        date1 = data.index[0]
+        date2 = bsr.xdate.iloc[-1]
+        if date2 > date1:
+            if not data.empty:
+                print data
+                data.to_sql('dailydata', engine, if_exists='append', index=True)
+                return
+    else:
+        if not data.empty:
+            print data
+            data.to_sql('dailydata', engine, if_exists='append', index=True)
+            return
+
+    bsr['preclose'] = pd.Series(0.0, index=bsr.index)
+    bsr['hfqratio'] = pd.Series(lastestHfqRatio, index=bsr.index)
+    calc_hfqratio(data, bsr, lastestHfqRatio)
+
+    if not data.empty:
+        data.to_sql('dailydata', engine, if_exists='append', index=True)
+        #pass
+
+def getArgs():
+    parse=argparse.ArgumentParser()
+    parse.add_argument('-t', type=str, choices=['full', 'delta','bonus','bnd'], default='full', help='download type')
+
+    args=parse.parse_args()
+    return vars(args)
+
 if __name__=="__main__":
+    args = getArgs()
+    type = args['t']
+
+    if (type == 'full'):
+        get_all_full_daily_data()
+    elif(type == 'delta'):
+        get_today_all_from_163()
+        get_today_all_from_sina()
+    elif (type == 'bonus'):
+        get_bonus_ri_sc()
+    elif (type == 'bnd'):
+        get_bonus_ri_sc()
+        get_today_all_from_163()
+        get_today_all_from_sina()
+
     #update_weekly_data()
     # get_bonus_and_ri('000001')
     # get_stock_change('000001')
-    #get_stock_full_daily_data('002373')
+    #get_stock_full_daily_data('603519')
     #get_index_full_daily_data('000001')
-    get_all_full_daily_data()
-
+    #get_bonus_ri_sc()
+    #get_today_all_from_163()
+    #get_today_all_from_sina()
+    #get_delta_daily_data('002352')
+    #update_today_data('603519')
 
 
 

@@ -18,11 +18,12 @@ logging.basicConfig(level=logging.DEBUG,
 def get_code_list(start_code, end_code, engine):
     sql = ''
     if(start_code == '' and end_code == ''):
-        sql = 'SELECT code, name FROM stock_list'
+        sql = r"select code,name from stock_list where code not like '2_____' and code not like '9_____'"
     else:
-        sql = 'SELECT code, name FROM stock_list where CAST(code AS Integer) >= ' + start_code +' and CAST(code AS Integer) <= ' + end_code
+        sql = "SELECT code,name FROM stock_list where code not like '2_____' and code not like '9_____' and CAST(code AS Integer) >= " + start_code +" and CAST(code AS Integer) <= " + end_code
 #    sql = "SELECT * FROM tick_tbl_000001 where time < DATE '2016-01-01' and time > DATE '2015-01-01'"
-    return pd.read_sql(sql, engine,)
+    df = pd.read_sql(sql, engine)
+    return df
 
 def get_index_list(start_code, end_code, engine):
     sql = ''
@@ -39,7 +40,7 @@ start_date = '1990-01-01'
 end_date = '2050-01-01'
 fuquan = 'qfq'
 table = code + _DAY + '_' + fuquan
-engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=True)
+engine = sa.create_engine('postgresql+psycopg2://postgres:Wcp181114@localhost:5432/postgres', echo=True)
 #read example
 #dayK1 = pd.read_sql_query(text('SELECT open, high FROM "dayk_table" WHERE date =:date1;'), engine, params={'date1':'2016-01-04'})
 #dayK1 = pd.read_sql_table(table, engine, index_col = 'date')
@@ -109,6 +110,8 @@ def load_dailydata_from_db_to_file():
     while True:
         sql = "SELECT *,rank() OVER (PARTITION BY date ORDER BY totalcap asc) as rank1, rank() OVER (PARTITION BY date ORDER BY totalcap desc) \
         as rank2 FROM dailydata order by date desc limit %d offset %d" % (chunk_size, offset)
+        #sql = "SELECT *,rank() OVER (PARTITION BY date ORDER BY totalcap asc) as rank1, rank() OVER (PARTITION BY date ORDER BY totalcap desc) \
+        #as rank2 FROM dailydata where code='000001' order by date desc limit %d offset %d" % (chunk_size, offset)
         dfs.append(psql.read_sql(sql, engine, index_col=['date'], parse_dates=True))
         offset += chunk_size
         if len(dfs[-1]) < chunk_size:
@@ -142,4 +145,4 @@ if __name__=="__main__":
     #load_daily_data(engine)
     #load_dailydata_from_db_to_file()
     #generate_quit_stock_from_db_to_file()
-    load_indexdaily_from_db_to_file()
+    load_dailydata_from_db_to_file()
