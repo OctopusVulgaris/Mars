@@ -1,194 +1,360 @@
 # -*- coding:utf-8 -*-
+
 import pandas as pd
 import sqlalchemy as sa
 import datetime
 from collections import namedtuple
+import numpy as np
+import cython
 
 import logging
+import talib as ta
+
 
 max_holdings = 10
-holdings = []
+holding_cnt = 0
+holdings = {}
+summits = {}
+to_be_sell = []
 cash = 100000.0
-alert = 0.9
+poolsize = 300
+alert = 900
 st_pattern = r'^ST|^S|^\*ST|退市'
 ashare_pattern = r'^0|^3|^6'
-end_date = datetime.datetime(2016,5,13)
 
-holdings_log = pd.DataFrame(columns=('date', 'code', 'amount', 'cash'))
-transaction_log = pd.DataFrame(columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio'))
+end_date = datetime.datetime(2008,1,10)
+tax_date = datetime.datetime(2008,9,19)
 
-MyStruct = namedtuple("MyStruct", "price volume code")
+holdings_log = []
+transaction_log = []
+#holdings_log = pd.DataFrame(columns=('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash'))
+#transaction_log = pd.DataFrame(columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio',
+# 'fee'))
+
+
+def holdingNum():
+    cnt =0
+    for code in holdings.keys():
+        cnt += len(holdings[code])
+    return cnt
+
 class instrument:
     price = 0
     volume = 0
     amount = 0
     hfqratio = 1
+    ratio_d = 1
     code = None
-    summit = 0
+    #summit = 0
 
-def sell(stock, price, date, hfqratio, type):
-    # profit=(price sell * hfq sell- price buy * hfq buy) * volume/ buy hfq
+def updateDayPrcRatio(code, hfqratio, open):
+    stocks = holdings[code]
+    for stock in stocks:
+        stock.ratio_d = hfqratio
+        stock.price = open
+
+def sell(stock, price, date, hfqratio, type, pamo):
     global cash
-    profit = (price * hfqratio - stock.price * stock.hfqratio) * stock.volume / stock.hfqratio
-    delta = stock.amount + profit
+    #global holding_cnt
+    ratio = stock.hfqratio / hfqratio
+    stock.volume = stock.volume * ratio
+    prevAmo = pamo * 0.005
+    amount = price * stock.volume
+    if amount > prevAmo:
+        vol1 = int(prevAmo / price / 100) * 100
+        vol2 = stock.volume - vol1
+        amount = vol1 * price + vol2 * price *0.98
+
+    fee = amount * 0.0018 + stock.volume / 1000 * 0.6
+    profit = amount - stock.amount - fee
+    delta = amount - fee
     cash = cash + delta
-    print 'sell ' + str(stock.code) + ', vol ' + str(stock.volume) + ', price ' + str(price)+' , ' \
-        '' + str(stock.amount) + ' , ' + str(profit) + ', ' + str(stock.hfqratio)+ ', ' +'date ' + str(date)
-    transaction_log.loc[len(transaction_log)] = (date, type, stock.code, price, stock.volume, delta, profit, hfqratio)
-    holdings.remove(stock)
+    #print 'sell ' + str(stock.code) + ', vol ' + str(stock.volume) + ', price ' + str(price)+' , ' + str(amount) + ' , ' + str(profit) + ', ' + str(stock.hfqratio)+ ', ' +'date ' + str(date)
+    #holding_cnt -= 1
+    transaction_log.append((date, type, stock.code, amount/stock.volume, stock.volume, amount,  profit, hfqratio, fee))
 
 
-def buy(code, price, margin, date, hfqratio):
+def allSell(code, date, row, type):
+    if (row.high - row.low) < 0.01 and (row.high - row.lowlimit) < 0.01:
+        #can't sell on low limit
+        return
+    if holdings.has_key(code):
+        to_be_sell.append(code)
+        stocks = holdings[code]
+        for stock in stocks:
+            sell(stock, row.open, date, row.hfqratio, type, row.pamo)
+    else:
+        print 'fail to sell ' + code + ' ' + str(date)
+
+
+def buy(code, price, margin, date, hfqratio, pmao):
     global cash
-    print 'buy ' + str(code) + ', vol ' + str(margin) + ', price ' + str(price) + ', date ' + str(date)
-    volume = int((margin / price) / 100) * 100
-    inst = instrument()
-    inst.price = price
-    inst.volume = volume
-    inst.code = code
-    inst.amount = price * volume
-    inst.hfqratio = hfqratio
-    #hfq summit price
-    inst.summit = price * hfqratio
-    holdings.append(inst)
+    global summit
+    #global holding_cnt
+    factor = 1.0
+    if date < tax_date:
+        factor = 0.0018
+    else:
+        factor = 0.0008
+    margin = margin * (1 - factor)
+    amo1 = 0
+    amo2 = 0
+    prevAmo = pmao * 0.005
+    volume = 0
+    tmpvol = 0
+    #print 'buy ' + str(code) + ', vol ' + str(margin) + ', price ' + str(price) + ', date ' + str(date)
+    if margin > pmao:
+        volume = int(prevAmo / price / 100) * 100
+        tmpvol = int((margin - prevAmo) / (price * 1.02) / 100) * 100
+        amo1 = price * volume
+        amo2 = price * 1.02 * tmpvol
+    else:
+        volume = int(margin / price / 100) * 100
+        amo1 = price * volume
+    volume = volume + tmpvol
 
-    transaction_log.loc[len(transaction_log)] = (date, 'buy', code, price, volume, inst.amount, 0, hfqratio)
-    cash = cash - inst.amount
+    if volume < 100:
+        #print 'vol less than 100 ' + str(code) + ' ' + str(date)
+        return
+    inst = instrument()
+    inst.amount = amo1 + amo2
+    inst.volume = volume
+    inst.price = inst.amount / volume
+    inst.code = code
+    inst.hfqratio = hfqratio
+    inst.ratio_d = hfqratio
+    #hfq summit price
+    hfqPrc = price * hfqratio
+    if summits.has_key(code):
+        summits[code] = max(summits[code], hfqPrc)
+    else:
+        summits[code] = hfqPrc
+
+    if holdings.has_key(code):
+        holdings[code].append(inst)
+    else:
+        holdings[code] = [inst]
+
+    fee = inst.amount * factor + + volume / 1000 * 0.6
+    #transaction_log.loc[len(transaction_log)] = (date, 'buy', code, inst.price, volume, inst.amount, 0, hfqratio, fee)
+    transaction_log.append((date, 'buy', code, inst.price, volume, inst.amount, 0, hfqratio, fee))
+    cash = cash - inst.amount - fee
+    #holding_cnt += 1
+
 
 def handle_day(x):
+    #global holdings
+    #global holdings_log
     date = x.index[0][0]
-    if date > end_date or cash < 0:
-        return
     #sell
-    for stock in holdings:
+
+    for code in holdings.keys():
         try:
-            pos = x.index.get_loc((date, stock.code))
-            row = x.ix[pos]
-            if (date == end_date):
-                sell(stock, row.open, date, row.hfqratio, 'end date')
-                continue
+            pos = x.index.get_loc((date, code))
+            row = x.iloc[pos]
+            updateDayPrcRatio(code, row.hfqratio, row.open)
             # total cap out of rank 300, sell
             if not pos < 300:
-                sell(stock, row.open, date, row.hfqratio, 'totalcap')
+                allSell(code, date, row, 'totalcap')
                 continue
 
-            if stock.summit < row.phigh:
-                stock.summit = row.phigh
+            #adjsummit = newhfq/oldhfq * summit, so we save summit / oldhfq for future use
+            adjSummit = summits[code] / row.hfqratio
+            if adjSummit < row.phigh:
+                summits[code] = row.phigh * row.hfqratio
+                adjSummit = row.phigh
 
             # suspend for trading, continue hold
             if row.open < 0.01:
                 continue
             # open high, but not reach limit, sell
             if row.open > row.phigh and row.open < row.highlimit:
-                sell(stock, row.open, date, row.hfqratio, 'open high')
+                allSell(code, date, row, 'open high')
                 continue
             # open less than alert line, sell
-            if row.open < stock.summit * alert:
-                sell(stock, row.open, date, row.hfqratio, 'fallback')
+            if row.open < round(adjSummit * alert, -1) / 1000:
+                allSell(code, date, row, 'fallback')
                 continue
         except KeyError:
-            print 'error, instrument ' + str(stock.code) + ' not exist  on ' + str(date)
+            print 'error, instrument ' + str(code) + ' not exist  on ' + str(date)
+
+    global to_be_sell
+    for code in to_be_sell:
+        holdings.pop(code)
+        summits.pop(code)
+    to_be_sell[:] = []
+
+
     #buy
-    if len(holdings) < max_holdings:
-        margin = cash / (max_holdings - len(holdings))
-        valid = x[x.buyflag == True]
-        for row in valid.itertuples():
-            if len(holdings) >= max_holdings:
-                break
-            code = row.Index[1]
-            open = row.open
-            buy(code, open, margin, date, row.hfqratio)
+    if cash > 0:
+        cnt = holdingNum()
+        if cnt < max_holdings:
+            availablCnt = max_holdings - cnt
+            margin = cash / availablCnt
+            valid = x.head(poolsize)
+            valid = valid[valid.buyflag == True]
+            for row in valid.itertuples():
+                if availablCnt <= 0.01:
+                    break
+                code = row.Index[1]
+                open = row.open
+                #can't buy at high limit
+                if (row.high - row.low) < 0.01 and (row.high - row.highlimit) < 0.01:
+                    continue
+                buy(code, open, margin, date, row.hfqratio, row.pamo)
+                availablCnt = availablCnt - 1
 
     #log
-    for row in holdings:
-        holdings_log.loc[len(holdings_log)] = (date, row.code, row.amount, cash)
+    for rows in holdings.values():
+        for stock in rows:
+            #holdings_log.loc[len(holdings_log)] = (date, stock.code, stock.hfqratio, stock.ratio_d, stock.price,
+    # stock.volume, stock.amount, cash)
+            holdings_log.append((date, stock.code, stock.hfqratio, stock.ratio_d, stock.price, stock.volume, stock.amount, cash))
 
 
 
 def sort(x):
-    x = x.sort_values('totalcap', ascending=True)
+
+    x = x.sort_values('ptotalcap', ascending=True)
 
     # check st, final true is ready to buy
-    x.loc[:, 'buyflag'] = x.name.str.contains(st_pattern)
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] != True
+    x['buyflag'] = x.name.str.contains(st_pattern)
+    x['buyflag'] = x.buyflag != True
     # open on this day
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.open > 0.01)
+    x['buyflag'] = x.buyflag & (x.open > 0.01)
     # open low , but not over prev low limit and don't reach today low limit
     # if halt yesterday, low == 0, this case don't buy
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.open < x.plow)
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.open > x.lowlimit)
-    x.loc[:, 'buyflag'] = x.loc[:, 'buyflag'] & (x.open > x.plowlimit)
+    x['buyflag'] = x.buyflag & (x.open < x.plow)
+    x['buyflag'] = x.buyflag & (x.open > x.lowlimit)
+    x['buyflag'] = x.buyflag & (x.open > x.plowlimit)
+    x['buyflag'] = x.buyflag & (x.hfqratio >= 1)
 
     return x
 
 
 def calc(x):
+
     x = x.sort_index()
+    z = x.index
+    x.reset_index(inplace=True)
     valid = x[x.open > 0.01]
     y = valid.index
+    #reset index to jump halt days
     valid = valid.reset_index()
 
     result = pd.DataFrame()
     # yesterday
-    result.loc[:, 'pclose'] = valid.index - 1
-    result.loc[:, 'pclose'] = result.pclose.map(valid.close)
-    result.loc[:, 'plow'] = valid.index - 1
-    result.loc[:, 'plow'] = result.plow.map(valid.low)
-    result.loc[:, 'phigh'] = valid.index - 1
-    result.loc[:, 'phigh'] = result.phigh.map(valid.high)
-    result.loc[:, 'pamo'] = valid.index - 1
-    result.loc[:, 'pamo'] = result.pamo.map(valid.amo)
-    result.loc[:, 'plowlimit'] = valid.index - 2
-    result.loc[:, 'plowlimit'] = result.plowlimit.map(valid.close) * 0.9
+    result['hfqratio'] = valid.hfqratio
+    result['phfqratio'] = valid.index - 1
+    result['phfqratio'] = result.phfqratio.map(valid.hfqratio)
+    result['pphfq'] = valid.index - 2
+    result['pphfq'] = result.pphfq.map(valid.hfqratio)
+    factor = result.phfqratio / result.hfqratio
+    result['pclose'] = valid.index - 1
+    result['pclose'] = result.pclose.map(valid.close)
+    result['pclose'] = result.pclose * factor
+    result['plow'] = valid.index - 1
+    result['plow'] = result.plow.map(valid.low)
+    result['plow'] = result.plow * factor
+    result['phigh'] = valid.index - 1
+    result['phigh'] = result.phigh.map(valid.high)
+    result['phigh'] = result.phigh * factor
+    result['pamo'] = valid.index - 1
+    result['pamo'] = result.pamo.map(valid.amo)
+    factor = result.pphfq / result.hfqratio
+    result['plowlimit'] = valid.index - 2
+    result['plowlimit'] = result.plowlimit.map(valid.close)
+    result['plowlimit'] = result.plowlimit * factor
+    result['plowlimit'] = result.plowlimit * 900
 
     # on day data, value not exist for halt
     #result.loc[:, 'name'] = valid.name
-    result.loc[:, 'open'] = valid.open
-    result.loc[:, 'lowlimit'] = result.pclose * 0.9
-    result.loc[:, 'highlimit'] = result.pclose * 1.1
+    result.pclose = result.pclose.apply(round, ndigits=2)
+    result['open'] = valid.open
+    result['high'] = valid.high
+    result['low'] = valid.low
+    result['lowlimit'] = result.pclose * 900
+    result['highlimit'] = result.pclose * 1100
 
+    # round all price to two decimal places
+    result.plow = result.plow.apply(round, ndigits=2)
+    result.phigh = result.phigh.apply(round, ndigits=2)
+    result.lowlimit = result.lowlimit.apply(round, ndigits=-1)
+    result.highlimit = result.highlimit.apply(round, ndigits=-1)
+    result.plowlimit = result.plowlimit.apply(round, ndigits=-1)
+    result.lowlimit= result.lowlimit / 1000
+    result.highlimit = result.highlimit / 1000
+    result.plowlimit = result.plowlimit / 1000
+
+    #recover to valid index first
     result = result.set_index(y)
+    #recover to x.index
     result = result.reindex(x.index, fill_value=0)
 
-    # on day data, value exist no matter halt
-    result.loc[:, 'name'] = x.name
-    result.loc[:, 'totalcap'] = x.totalcap
-    result.loc[:, 'hfqratio'] = x.hfqratio
+    # on day data, value exist no matter haltx
+    result['ptotalcap'] = x.index - 1
+    result['ptotalcap'] = result.ptotalcap.map(x.totalcap)
+
+    result['name'] = x.name
+    #result.loc[:, 'totalcap'] = x.totalcap
+    result['hfqratio'] = x.hfqratio
+    #recover to date index
+    result = result.set_index(z)
     return result
 
-def updateTmpHDF():
+def GetTotalCapIndex(x):
+    x = x.sort_values('totalcap')
+    x = x.head(int(len(x) / 10))
+    return x.totalcap.sum() / 100000
+
+
+def csvtoHDF():
     t1 = datetime.datetime.now()
     print 'reading...'
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf','day')
+    aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
+    df = pd.concat(aa)
 
     print len(df)
 
     df.sort_index(inplace=True)
-    df = df.loc[datetime.datetime(2008, 1, 1, ):, :]
     print datetime.datetime.now() - t1
 
-    #remove st
-    #pattern = r'^ST|^S|^\*ST'
-    #df.loc[:,'flag'] = df.name.str.contains(pattern)
-    #df = df[df.flag==False]
-    #del df['flag']
-    #print len(df)
+    print 'saving...'
+    df.to_hdf('d:\\HDF5_Data\\dailydata.hdf','day',mode='w', format='t', complib='blosc')
+
+    print len(df)
+    print datetime.datetime.now() - t1
+
+def prepareMediateFile():
+    t1 = datetime.datetime.now()
+    print 'reading...'
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf','day')
+    df = df[df.code.str.contains(ashare_pattern)]
+
+
+    print len(df)
+
+    df.sort_index(inplace=True)
+    print datetime.datetime.now() - t1
 
     groupbycode = df.groupby('code')
 
     print 'calculating...'
     result = groupbycode.apply(calc)
+
+    result = result[result.name.str.startswith('N') != True]
     result = result.reset_index()
+
     print result.columns
     result = result.set_index(['date', 'code'])
     result = result.sort_index()
 
     groupbydate = result.groupby(level=0)
+
     df = groupbydate.apply(sort)
     df = df.reset_index(level=0, drop=True)
 
-
-
+    df = df.loc[datetime.datetime(2008, 1, 1, ):, :]
 
     print datetime.datetime.now() - t1
     print 'saving...'
@@ -197,19 +363,48 @@ def updateTmpHDF():
     print len(df)
     print datetime.datetime.now() - t1
 
-def ProcessTmpHDF():
+def ComputeCustomIndex():
+    t1 = datetime.datetime.now()
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
+    df = df[df.code.str.contains(ashare_pattern)]
+
+    print datetime.datetime.now()- t1
+    groupbydate = df.groupby(level=0)
+    df = groupbydate.apply(GetTotalCapIndex)
+
+    df.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='t', complib='blosc')
+
+    print datetime.datetime.now() - t1
+
+def Processing():
     t1 = datetime.datetime.now()
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day')
     print datetime.datetime.now()- t1
+    df = df.loc[datetime.datetime(2008, 1, 7, ):, :]
     groupbydate = df.groupby(level=0)
     groupbydate.apply(handle_day)
-    print datetime.datetime.now() - t1
+
     print 'cash: ' + str(cash)
-    transaction_log.to_csv('d:\\transaction_log.csv')
-    holdings_log.to_csv('d:\\holdings_log.csv')
+    t_log = pd.DataFrame(transaction_log)
+    t_log.columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio', 'fee')
+    t_log.to_csv('d:\\transaction_log.csv')
+    h_log = pd.DataFrame(holdings_log)
+    h_log.columns = ('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash')
+    h_log.vol = h_log.vol * h_log.ratio_d
+    h_log.vol = h_log.vol / h_log.ratio_buy
+    h_log.amount = h_log.price * h_log.vol
+    aa = h_log.groupby('date')['amount'].sum()
+    h_log = h_log.set_index('date')
+    aa.reindex(h_log.index, method='bfill')
+    h_log['total'] = h_log.cash + aa
+    h_log.to_csv('d:\\holdings_log.csv')
+    print datetime.datetime.now() - t1
 
 
 
-#updateTmpHDF()
-ProcessTmpHDF()
+
+#csvtoHDF()
+#prepareMediateFile()
+#Processing()
+ComputeCustomIndex()
