@@ -108,9 +108,9 @@ def get_stock_list(retry_count, pause):
             err = 'Error %s' % e
             logging.info(err)
             time.sleep(pause)
-
-        logging.info('get_stock_list finished successfully')
-        return
+        else:
+            logging.info('get_stock_list finished successfully')
+            return
     logging.info('get_stock_list failed')
 
 if __name__=="__main__":
