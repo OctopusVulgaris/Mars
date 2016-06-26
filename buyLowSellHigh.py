@@ -135,7 +135,7 @@ def buy(code, price, margin, date, hfqratio, pmao):
     else:
         holdings[code] = [inst]
 
-    fee = inst.amount * factor + + volume / 1000 * 0.6
+    fee = inst.amount * factor + volume / 1000 * 0.6
     #transaction_log.loc[len(transaction_log)] = (date, 'buy', code, inst.price, volume, inst.amount, 0, hfqratio, fee)
     transaction_log.append((date, 'buy', code, inst.price, volume, inst.amount, 0, hfqratio, fee))
     cash = cash - inst.amount - fee
@@ -199,7 +199,7 @@ def handle_day(x):
                 code = row.Index[1]
                 open = row.open
                 #can't buy at high limit
-                if (row.high - row.low) < 0.01 and (row.high - row.highlimit) < 0.01:
+                if (row.open - row.highlimit) < 0.01:
                     continue
                 buy(code, open, margin, date, row.hfqratio, row.pamo)
                 availablCnt = availablCnt - 1
@@ -325,6 +325,23 @@ def csvtoHDF():
     print len(df)
     print datetime.datetime.now() - t1
 
+ef sqltoHDF():
+    t1 = datetime.datetime.now()
+    print 'reading...'
+    aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
+    df = pd.concat(aa)
+
+    print len(df)
+
+    df.sort_index(inplace=True)
+    print datetime.datetime.now() - t1
+
+    print 'saving...'
+    df.to_hdf('d:\\HDF5_Data\\dailydata.hdf','day',mode='w', format='t', complib='blosc')
+
+    print len(df)
+    print datetime.datetime.now() - t1
+
 def prepareMediateFile():
     t1 = datetime.datetime.now()
     print 'reading...'
@@ -403,8 +420,7 @@ def Processing():
 
 
 
-
-#csvtoHDF()
-#prepareMediateFile()
+csvtoHDF()
+prepareMediateFile()
 #Processing()
-ComputeCustomIndex()
+#ComputeCustomIndex()
