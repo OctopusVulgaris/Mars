@@ -20,18 +20,6 @@ def sort(x):
 
     x = x.sort_values('totalcap', ascending=True)
 
-    # check st, final true is ready to buy
-    x['buyflag'] = x.name.str.contains(st_pattern)
-    x['buyflag'] = x.buyflag != True
-    # open on this day
-    x['buyflag'] = x.buyflag & (x.open > 0.01)
-    # open low , but not over prev low limit and don't reach today low limit
-    # if halt yesterday, low == 0, this case don't buy
-    x['buyflag'] = x.buyflag & (x.open < x.plow)
-    x['buyflag'] = x.buyflag & (x.open > x.lowlimit)
-    x['buyflag'] = x.buyflag & (x.open > x.plowlimit)
-    x['buyflag'] = x.buyflag & (x.hfqratio >= 1)
-
     return x
 
 
@@ -50,29 +38,12 @@ def calc(x):
     result['hfqratio'] = valid.hfqratio
     result['phfqratio'] = valid.index - 1
     result['phfqratio'] = result.phfqratio.map(valid.hfqratio)
-    result['pphfq'] = valid.index - 2
-    result['pphfq'] = result.pphfq.map(valid.hfqratio)
+
     factor = result.phfqratio / result.hfqratio
     result['pclose'] = valid.index - 1
     result['pclose'] = result.pclose.map(valid.close)
     result['pclose'] = result.pclose * factor
-    result['plow'] = valid.index - 1
-    result['plow'] = result.plow.map(valid.low)
-    result['plow'] = result.plow * factor
-    result['phigh'] = valid.index - 1
-    result['phigh'] = result.phigh.map(valid.high)
-    result['phigh'] = result.phigh * factor
-    result['pamo'] = valid.index - 1
-    result['pamo'] = result.pamo.map(valid.amo)
-    factor = result.pphfq / result.hfqratio
-    result['plowlimit'] = valid.index - 2
-    result['plowlimit'] = result.plowlimit.map(valid.close)
-    result['plowlimit'] = result.plowlimit * factor
-    result['plowlimit'] = result.plowlimit * 0.9
-
-    # on day data, value not exist for halt
-    #result.loc[:, 'name'] = valid.name
-    result.pclose = result.pclose.apply(round, ndigits=2)
+    result.pclose = round_series(result.pclose)
     result['open'] = valid.open
     result['high'] = valid.high
     result['low'] = valid.low
@@ -83,11 +54,8 @@ def calc(x):
     result['thighlimit'] = result.close * 1.1
 
     # round all price to two decimal places
-    result.plow = round_series(result.plow)
-    result.phigh = round_series(result.phigh)
     result.lowlimit = round_series(result.lowlimit)
     result.highlimit = round_series(result.highlimit)
-    result.plowlimit = round_series(result.plowlimit)
     result.tlowlimit = round_series(result.tlowlimit)
     result.thighlimit = round_series(result.thighlimit)
 

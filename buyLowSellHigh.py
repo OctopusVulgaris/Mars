@@ -325,7 +325,7 @@ def csvtoHDF():
     print len(df)
     print datetime.datetime.now() - t1
 
-ef sqltoHDF():
+def sqltoHDF():
     t1 = datetime.datetime.now()
     print 'reading...'
     aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
