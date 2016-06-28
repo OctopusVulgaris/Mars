@@ -9,6 +9,7 @@ import argparse
 import json
 import numpy as np
 import re
+import talib as ta
 from urllib2 import urlopen, Request
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
@@ -24,9 +25,10 @@ def round_series(s):
 def sort(x):
 
     x = x.sort_values('totalcap', ascending=True)
-
     return x
 
+def getMin300Index(x):
+    return x.head(300).totalcap.sum() / 100000
 
 def calc(x):
 
@@ -134,6 +136,12 @@ def generateYesterdayFile():
     print datetime.datetime.now() - t1
 
     df = prepareMediateFile(df)
+
+    m300Index = pd.DataFrame()
+    m300Index['i300'] = df.groupby(level=0).apply(getMin300Index)
+    m300Index['ma9'] = ta.MA(m300Index.i300.values, timeperiod=9)
+    m300Index['ma21'] = ta.MA(m300Index.i300.values, timeperiod=21)
+
 
     lastday = df.loc[df.reset_index(level=1).index[-1]]
 
@@ -280,6 +288,8 @@ if __name__ == "__main__":
     type = args['t']
 
     if (type == 'evening'):
+        print 'evening start...'
         generateYesterdayFile()
     elif (type == 'morning'):
+        print 'morning start...'
         trade()

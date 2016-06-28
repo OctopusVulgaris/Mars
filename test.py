@@ -66,3 +66,14 @@ df.fee = df.fee.apply(round)
 df.fee = df.fee / 100
 df.to_csv(myfilepath, index=False)
 
+request = Request('http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?num=3000&sort=changepercent&asc=0&node=hs_a&symbol=&_s_r_a=page&page=0')
+text = urlopen(request, timeout=10).read()
+
+reg = re.compile(r'\,(.*?)\:')
+text = reg.sub(r',"\1":', text.decode('gbk') if ct.PY3 else text)
+text = text.replace('"{symbol', '{"symbol')
+jstr = json.dumps(text, encoding='GBK')
+js = json.loads(jstr)
+df = pd.DataFrame(pd.read_json(js, dtype={'code': object}),
+                  columns=DAY_TRADING_COLUMNS)
+df = df.drop('symbol', axis=1)
