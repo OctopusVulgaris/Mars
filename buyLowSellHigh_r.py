@@ -267,7 +267,7 @@ def get_today_all():
     if text == 'null':
         return None
     reg = re.compile(r'\,(.*?)\:')
-    text = reg.sub(r',"\1":', text.decode('gbk') if ct.PY3 else text)
+    text = reg.sub(r',"\1":', text.decode('gbk'))
     text = text.replace('"{symbol', '{"symbol')
     text = text.replace('{symbol', '{"symbol"')
     jstr = json.dumps(text, encoding='GBK')
