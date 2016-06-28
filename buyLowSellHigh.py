@@ -5,7 +5,7 @@ import sqlalchemy as sa
 import datetime
 from collections import namedtuple
 import numpy as np
-import cython
+
 
 import logging
 import talib as ta
@@ -294,6 +294,8 @@ def calc(x):
     # on day data, value exist no matter haltx
     result['ptotalcap'] = x.index - 1
     result['ptotalcap'] = result.ptotalcap.map(x.totalcap)
+    result['ptradeablecap'] = x.index - 1
+    result['ptradeablecap'] = result.ptradeablecap.map(x.tradeablecap)
 
     result['name'] = x.name
     #result.loc[:, 'totalcap'] = x.totalcap
@@ -311,7 +313,7 @@ def GetTotalCapIndex(x):
 def csvtoHDF():
     t1 = datetime.datetime.now()
     print 'reading...'
-    aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
+    aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'tradeablecap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
     df = pd.concat(aa)
 
     print len(df)

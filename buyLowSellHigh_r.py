@@ -1,10 +1,15 @@
 # -*- coding:utf-8 -*-
 
-import pandas as pd
 import sqlalchemy as sa
+import pandas as pd
 import datetime
 import numpy as np
 import tushare as ts
+import argparse
+import json
+import numpy as np
+import re
+from urllib2 import urlopen, Request
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
 st_pattern = r'^ST|^S|^\*ST|退市'
@@ -145,7 +150,8 @@ def trade():
     while not get:
         try:
             today = ts.get_today_all()
-            get = True
+            if today.index.is_unique:
+                get = True
         except Exception:
             print 'retrying...'
     today = today.set_index('code')
@@ -159,7 +165,7 @@ def trade():
     for i in range(0, len(holding)):
         instrument = holding.ix[i]
         oneRicToday = today.loc[instrument.code]
-        # trading halt
+        # trading
         if oneRicToday.open < 0.01:
             continue
 
@@ -249,6 +255,31 @@ def trade():
                 print 'buy ' + row.code + ' at price ' + str(row.open) + ' size ' + str(volume)
                 availablCnt = availablCnt - 1
 
+def getArgs():
+    parse = argparse.ArgumentParser()
+    parse.add_argument('-t', type=str, choices=['evening', 'morning'], default='morning', help='one of evening or morning')
 
-generateYesterdayFile()
-trade()
+    args=parse.parse_args()
+    return vars(args)
+
+def get_today_all():
+    text = urlopen('http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?num=8000&sort=mktcap&asc=0&node=hs_a&symbol=&_s_r_a=page&page=0').read()
+    if text == 'null':
+        return None
+    reg = re.compile(r'\,(.*?)\:')
+    text = reg.sub(r',"\1":', text.decode('gbk') if ct.PY3 else text)
+    text = text.replace('"{symbol', '{"symbol')
+    text = text.replace('{symbol', '{"symbol"')
+    jstr = json.dumps(text, encoding='GBK')
+    js = json.loads(jstr)
+    return pd.DataFrame(pd.read_json(js, dtype={'code': object}))
+
+
+if __name__ == "__main__":
+    args = getArgs()
+    type = args['t']
+
+    if (type == 'evening'):
+        generateYesterdayFile()
+    elif (type == 'morning'):
+        trade()
