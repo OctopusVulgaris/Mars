@@ -75,14 +75,13 @@ def get_realtime_all():
     #full_df.to_csv('d:\\ut.csv',encoding='utf-8',index=False)
     return full_df
 
-def get_realtime_all_st(retry=60):
+def get_realtime_all(riclist, retry = 60):
     start = time.time()
-    riclist = dataloader.get_code_list('', '', engine)
     length = len(riclist)
-    symbols =  riclist['code']
-    threads = []
+    symbols = riclist['code']
     loops = length / 300 + 1
-    for idx in range(0,loops,1):
+    full_df = pd.DataFrame()
+    for idx in range(0, loops, 1):
         sublist = symbols[idx * 300:(idx + 1) * 300]
         for _ in range(retry):
             try:
@@ -94,12 +93,12 @@ def get_realtime_all_st(retry=60):
             else:
                 # print('get daily data for %s successfully' % row.code.encode("utf-8"))
                 break
-        global full_df
         full_df = full_df.append(df)
-
+    print len(full_df)
     finish = time.time()
     print finish - start
-    full_df[['name','open','pre_close','price','date','code']] = full_df[['date','code','open','pre_close','price','name']]
+    full_df[['name', 'open', 'pre_close', 'price', 'date', 'code']] = full_df[
+        ['date', 'code', 'open', 'pre_close', 'price', 'name']]
     names = full_df.columns.tolist()
     names[names.index('name')] = 'Date'
     names[names.index('open')] = 'Code'
@@ -108,11 +107,17 @@ def get_realtime_all_st(retry=60):
     names[names.index('date')] = 'Price'
     names[names.index('code')] = 'Name'
     full_df.columns = names
-    #full_df.to_csv('d:\\ut.csv',encoding='utf-8',index=False)
+    # full_df.to_csv('d:\\ut.csv',encoding='utf-8',index=False)
     return full_df
 
+def get_realtime_all_st(retry=60):
+
+    riclist = dataloader.get_code_list('', '', engine)
+    return get_realtime_all(riclist, retry)
+
+
 if __name__=="__main__":
-    df = get_realtime_all()
-    df.to_csv('d:\\ut.csv', encoding='utf-8', index=False)
+    df = get_realtime_all_st()
+    #df.to_csv('d:\\ut.csv', encoding='utf-8', index=False)
     #df = get_today_all()
     #df.to_csv('d:\\ut_all.csv',encoding='utf-8',index=False)
