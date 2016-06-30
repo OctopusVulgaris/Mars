@@ -76,8 +76,9 @@ def get_realtime_all():
     return full_df
 
 def get_realtime_all_st(retry=60):
-    start = time.time()
+
     riclist = dataloader.get_code_list('', '', engine)
+    full_df = pd.DataFrame()
     length = len(riclist)
     symbols =  riclist['code']
     threads = []
@@ -86,19 +87,19 @@ def get_realtime_all_st(retry=60):
         sublist = symbols[idx * 300:(idx + 1) * 300]
         for _ in range(retry):
             try:
+                start = time.time()
                 df = ts.get_realtime_quotes(sublist)
+                finish = time.time()
+                print finish - start
             except Exception as e:
                 err = 'Error %s' % e
-                # print('Error %s' % e)
+                print('Error %s' % e)
                 time.sleep(1)
             else:
                 # print('get daily data for %s successfully' % row.code.encode("utf-8"))
                 break
-        global full_df
         full_df = full_df.append(df)
 
-    finish = time.time()
-    print finish - start
     full_df[['name','open','pre_close','price','date','code']] = full_df[['date','code','open','pre_close','price','name']]
     names = full_df.columns.tolist()
     names[names.index('name')] = 'Date'
@@ -112,7 +113,7 @@ def get_realtime_all_st(retry=60):
     return full_df
 
 if __name__=="__main__":
-    df = get_realtime_all()
+    df = get_realtime_all_st()
     df.to_csv('d:\\ut.csv', encoding='utf-8', index=False)
     #df = get_today_all()
     #df.to_csv('d:\\ut_all.csv',encoding='utf-8',index=False)

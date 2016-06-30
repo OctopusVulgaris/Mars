@@ -229,7 +229,7 @@ def write_stockchange_to_db(sinfo):
             conn.close()
     conn.commit()
 
-def get_bonus_and_ri(code, timeout=60):
+def get_bonus_and_ri(code, timeout=5):
     url = r'http://money.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
     selector = etree.HTML(content)
@@ -685,7 +685,7 @@ def get_today_all_from_sina(retry=50, pause=10):
     except StopIteration as e:
         pass
 
-def get_bonus_ri_sc(retry=50, pause=10):
+def get_bonus_ri_sc(retry=50, pause=1):
     target_list = dataloader.get_code_list('', '', engine)
     itr = target_list.itertuples()
     try:
