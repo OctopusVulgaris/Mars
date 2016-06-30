@@ -6,8 +6,9 @@ import pandas as pd
 import pandas.io.sql as psql
 import sqlalchemy as sa
 import logging
-import pickle
+import time
 import threading
+import argparse
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -40,7 +41,7 @@ start_date = '1990-01-01'
 end_date = '2050-01-01'
 fuquan = 'qfq'
 table = code + _DAY + '_' + fuquan
-engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=True)
+engine = sa.create_engine('postgresql+psycopg2://postgres:Wcp181114@localhost:5432/postgres', echo=True)
 #read example
 #dayK1 = pd.read_sql_query(text('SELECT open, high FROM "dayk_table" WHERE date =:date1;'), engine, params={'date1':'2016-01-04'})
 #dayK1 = pd.read_sql_table(table, engine, index_col = 'date')
@@ -103,6 +104,35 @@ def load_daily_data(engine):
     #return full_df
     #full_df.to_csv('fd.csv', encoding='utf-8')
 
+def load_today_data_from_db_to_file():
+    chunk_size = 100000
+    offset = 0
+    dfs = []
+    today = datetime.datetime.now().date()
+    delta = datetime.timedelta(days=1)
+    count = 0
+    while count == 0:
+        sql = "SELECT count(*) FROM dailydata where date=\'" + str(today) + "\'"
+        df = pd.read_sql(sql, engine)
+        count = df.ix[0]['count']
+        if count == 0:
+            today -= delta
+
+    while True:
+        sql = "SELECT *,rank() OVER (PARTITION BY date ORDER BY totalcap asc) as rank1, rank() OVER (PARTITION BY date ORDER BY totalcap desc) \
+        as rank2 FROM dailydata where date=\'"+str(today)+"\' limit %d offset %d" % (chunk_size, offset)
+        #sql = "SELECT *,rank() OVER (PARTITION BY date ORDER BY totalcap asc) as rank1, rank() OVER (PARTITION BY date ORDER BY totalcap desc) \
+        #as rank2 FROM dailydata where code='000001' order by date desc limit %d offset %d" % (chunk_size, offset)
+        dfs.append(psql.read_sql(sql, engine, index_col=['date'], parse_dates=True))
+        offset += chunk_size
+        if len(dfs[-1]) < chunk_size:
+            break
+    full_df = pd.concat(dfs)
+    del dfs
+    filename = '%s_consolidate.csv' % str(today)
+    logging.info("Loading data fininshed")
+    full_df.to_csv(filename, encoding='utf-8')
+
 def load_dailydata_from_db_to_file():
     chunk_size = 300000
     offset = 0
@@ -119,7 +149,7 @@ def load_dailydata_from_db_to_file():
     full_df = pd.concat(dfs)
     del dfs
     logging.info("Loading data fininshed")
-    full_df.to_csv('fd.csv', encoding='utf-8')
+    full_df.to_csv('full_consolidate.csv', encoding='utf-8')
 
 def generate_quit_stock_from_db_to_file():
     sql = "SELECT code from stock_list where status = -1"
@@ -141,8 +171,24 @@ def load_indexdaily_from_db_to_file():
     logging.info("Loading data fininshed")
     full_df.to_csv('index.csv', encoding='utf-8')
 
+def getArgs():
+    parse=argparse.ArgumentParser()
+    parse.add_argument('-t', type=str, choices=['full', 'delta'], default='full', help='type')
+
+    args=parse.parse_args()
+    return vars(args)
+
 if __name__=="__main__":
-    #load_daily_data(engine)
-    #load_dailydata_from_db_to_file()
-    #generate_quit_stock_from_db_to_file()
-    load_dailydata_from_db_to_file()
+    args = getArgs()
+    type = args['t']
+
+    if (type == 'full'):
+        load_dailydata_from_db_to_file()
+    elif(type == 'delta'):
+        load_today_data_from_db_to_file()
+
+    # load_daily_data(engine)
+    # load_dailydata_from_db_to_file()
+    # generate_quit_stock_from_db_to_file()
+    # load_dailydata_from_db_to_file()
+    #load_today_data_from_db_to_file()

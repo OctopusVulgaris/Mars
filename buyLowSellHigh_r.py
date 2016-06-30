@@ -262,19 +262,6 @@ def getArgs():
     args=parse.parse_args()
     return vars(args)
 
-def get_today_all():
-    text = urlopen('http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?num=8000&sort=mktcap&asc=0&node=hs_a&symbol=&_s_r_a=page&page=0').read()
-    if text == 'null':
-        return None
-    reg = re.compile(r'\,(.*?)\:')
-    text = reg.sub(r',"\1":', text.decode('gbk') if ct.PY3 else text)
-    text = text.replace('"{symbol', '{"symbol')
-    text = text.replace('{symbol', '{"symbol"')
-    jstr = json.dumps(text, encoding='GBK')
-    js = json.loads(jstr)
-    return pd.DataFrame(pd.read_json(js, dtype={'code': object}))
-
-
 if __name__ == "__main__":
     args = getArgs()
     type = args['t']

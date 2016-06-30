@@ -14,6 +14,7 @@ from dataloader import engine
 import pandas.io.sql as psql
 import tushare as ts
 import argparse
+import utility
 
 from sqlalchemy import Date, text, DateTime, Integer
 import psycopg2
@@ -26,7 +27,7 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%a, %d %b %Y %H:%M:%S',
                     filename='log.txt'
                     )
-conn = psycopg2.connect(database="postgres", user="postgres", password="postgres", host="localhost", port="5432")
+conn = psycopg2.connect(database="postgres", user="postgres", password="Wcp181114", host="localhost", port="5432")
 cur = conn.cursor()
 proxies = {
     'http': 'http://10.23.31.130:8080',
@@ -630,16 +631,28 @@ def close_check(row):
     row.tradeablecap *= 10000
     return row
 
+def get_today_all_from_sina_realtime(retry=50, pause=10):
+    df = utility.get_realtime_all()
+    df1 = df[['Date','Code','Open','Pre_close','high','low','Price','Name']]
+    df1.columns = ['date','code','open','prevclose','high','low','close','name']
+    df1.to_sql('dailydata', engine, if_exists='append', index=False)
+
 def get_today_all_from_sina(retry=50, pause=10):
     #please take note::
     #change tushare to add pricechange
     #added by andy
-    df = ts.get_today_all()
+    df = utility.get_today_all()
     #print df
 
-    df.columns = ['code', 'name', 'netchng','pctchng', 'close', 'open', 'high', 'low', 'prevclose', 'vol','turnoverrate', 'amo', 'per','pb','totalcap', 'tradeablecap']
+    #df.columns = ['code', 'name', 'netchng','pctchng', 'close', 'open', 'high', 'low', 'prevclose', 'vol','turnoverrate', 'amo', 'per','pb','totalcap', 'tradeablecap']
+    df.columns = ['amo', 'buy', 'pctchng', 'code','high', 'low', 'totalcap','name', 'tradeablecap','open','pb', 'per', 'netchng', 'sell', 'prevclose','symbol','ticktime','close', 'turnoverrate','vol']
     df.drop('per', 1, inplace=True)
     df.drop('pb', 1, inplace=True)
+    df.drop('buy', 1, inplace=True)
+    df.drop('sell', 1, inplace=True)
+    df.drop('ticktime', 1, inplace=True)
+    df.drop('symbol', 1, inplace=True)
+
     df.to_csv('t1.csv', encoding='utf-8')
     df = df.apply(close_check, axis=1)
     df.to_csv('t2.csv', encoding='utf-8')
@@ -867,7 +880,7 @@ if __name__=="__main__":
     #get_today_all_from_sina()
     #get_delta_daily_data('002352')
     #update_today_data('603519')
-
+    #get_today_all_from_sina_realtime()
 
 
 
