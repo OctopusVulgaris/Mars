@@ -263,7 +263,7 @@ def getArgs():
     return vars(args)
 
 def get_today_all():
-    text = urlopen('http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?num=8000&sort=mktcap&asc=0&node=hs_a&symbol=&_s_r_a=page&page=0').read()
+    text = urlopen('http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?num=8000&sort=mktcap&asc=0&node=hs_a').read()
     if text == 'null':
         return None
     reg = re.compile(r'\,(.*?)\:')

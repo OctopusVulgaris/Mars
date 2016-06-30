@@ -76,7 +76,7 @@ def get_realtime_all():
     return full_df
 
 def get_realtime_all_st(retry=60):
-
+    start = time.time()
     riclist = dataloader.get_code_list('', '', engine)
     full_df = pd.DataFrame()
     length = len(riclist)
@@ -87,10 +87,7 @@ def get_realtime_all_st(retry=60):
         sublist = symbols[idx * 300:(idx + 1) * 300]
         for _ in range(retry):
             try:
-                start = time.time()
                 df = ts.get_realtime_quotes(sublist)
-                finish = time.time()
-                print finish - start
             except Exception as e:
                 err = 'Error %s' % e
                 print('Error %s' % e)
@@ -110,6 +107,8 @@ def get_realtime_all_st(retry=60):
     names[names.index('code')] = 'Name'
     full_df.columns = names
     #full_df.to_csv('d:\\ut.csv',encoding='utf-8',index=False)
+    finish = time.time()
+    print finish - start
     return full_df
 
 
