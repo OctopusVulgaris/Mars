@@ -847,6 +847,10 @@ def update_today_data(code, timeout=60):
         data.to_sql('dailydata', engine, if_exists='append', index=True)
         #pass
 
+def postdelta():
+    sql = "update dailydata set totalcap=close * (select totalshare from bonus_ri_sc where code=dailydata.code and totalshare > 0 order by xdate desc limit 1) where date='20160630' and totalcap =0 and open !=0"
+    pd.read_sql(sql, engine)
+
 def getArgs():
     parse=argparse.ArgumentParser()
     parse.add_argument('-t', type=str, choices=['full', 'delta','bonus','bnd'], default='full', help='download type')
@@ -861,14 +865,18 @@ if __name__=="__main__":
     if (type == 'full'):
         get_all_full_daily_data()
     elif(type == 'delta'):
+        get_today_all_from_sina_realtime()
         get_today_all_from_163()
         get_today_all_from_sina()
+        postdelta()
     elif (type == 'bonus'):
         get_bonus_ri_sc()
     elif (type == 'bnd'):
         get_bonus_ri_sc()
+        get_today_all_from_sina_realtime()
         get_today_all_from_163()
         get_today_all_from_sina()
+        postdelta()
 
     #update_weekly_data()
     # get_bonus_and_ri('000001')
@@ -880,7 +888,7 @@ if __name__=="__main__":
     #get_today_all_from_sina()
     #get_delta_daily_data('002352')
     #update_today_data('603519')
-    #get_today_all_from_sina_realtime()
+
 
 
 
