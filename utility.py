@@ -112,7 +112,7 @@ def get_realtime_all_st(retry=60):
     return full_df
 
 if __name__=="__main__":
-    df = get_realtime_all_st()
+    df = get_realtime_all()
     df.to_csv('d:\\ut.csv', encoding='utf-8', index=False)
     #df = get_today_all()
     #df.to_csv('d:\\ut_all.csv',encoding='utf-8',index=False)
