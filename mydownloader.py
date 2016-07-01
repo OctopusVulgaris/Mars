@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%a, %d %b %Y %H:%M:%S',
                     filename='log.txt'
                     )
-conn = psycopg2.connect(database="postgres", user="postgres", password="Wcp181114", host="localhost", port="5432")
+conn = psycopg2.connect(database="postgres", user="postgres", password="postgres", host="localhost", port="5432")
 cur = conn.cursor()
 proxies = {
     'http': 'http://10.23.31.130:8080',
@@ -848,8 +848,16 @@ def update_today_data(code, timeout=60):
         #pass
 
 def postdelta():
-    sql = "update dailydata set totalcap=close * (select totalshare from bonus_ri_sc where code=dailydata.code and totalshare > 0 order by xdate desc limit 1) where date='20160630' and totalcap =0 and open !=0"
-    pd.read_sql(sql, engine)
+    today = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+    sql = "update dailydata set totalcap=close * (select totalshare from bonus_ri_sc where code=dailydata.code and totalshare > 0 order by xdate desc limit 1) where date=\'"+today+"\' and totalcap =0 and open !=0"
+    try:
+        cur.execute(sql)
+    except psycopg2.DatabaseError, e:
+        err = 'Error %s' % e
+        print err
+        conn.rollback()
+        conn.close()
+    conn.commit()
 
 def getArgs():
     parse=argparse.ArgumentParser()
