@@ -15,11 +15,6 @@ def get_stock_list(retry_count, pause):
     :param pause: in sec
     :return:no
     """
-
-    proxies = {
-        'http': 'http://10.23.31.130:8080',
-        'https': 'http://10.23.31.130:8080',
-    }
     sz_onboard_url = 'http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1110&tab2PAGENUM=1&ENCODE=1&TABKEY=tab2'
     sz_quit_onhold_url = 'http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1793_ssgs&ENCODE=1&TABKEY=tab1'
     sz_quit_url = 'http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1793_ssgs&ENCODE=1&TABKEY=tab2'

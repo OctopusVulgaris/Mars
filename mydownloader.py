@@ -21,6 +21,7 @@ import psycopg2
 import datetime
 import logging
 import threading
+import numpy as np
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -29,10 +30,6 @@ logging.basicConfig(level=logging.DEBUG,
                     )
 conn = psycopg2.connect(database="postgres", user="postgres", password="postgres", host="localhost", port="5432")
 cur = conn.cursor()
-proxies = {
-    'http': 'http://10.23.31.130:8080',
-    'https': 'http://10.23.31.130:8080',
-}
 
 def create_dayk_talbe():
     conn = psycopg2.connect("dbname=postgres user=postgres password=postgres")
@@ -254,21 +251,21 @@ def get_bonus_and_ri(code, timeout=5):
         if (binfo['rdate'] == '--'):
             binfo['rdate'] = '1900-1-1'
         write_bonus_to_db(binfo)
-    #     df = pd.DataFrame()
-    #     df = df.from_dict(binfo, orient='index')
-    #     dfs.append(df.T)
-    # df = pd.DataFrame()
-    # df = pd.concat(dfs)
-    # df.adate = pd.to_datetime(df.adate)
-    # df.xdate = pd.to_datetime(df.xdate)
-    # df.rdate = pd.to_datetime(df.rdate)
-    # df.give = pd.to_numeric(df.give)
-    # df.trans = pd.to_numeric(df.trans)
-    # df.divpay = pd.to_numeric(df.divpay)
-    # print df.dtypes
-    # print 'b'
-    # print df
-    # df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+        df = pd.DataFrame()
+        df = df.from_dict(binfo, orient='index')
+        dfs.append(df.T)
+    if len(dfs) > 0:
+        df = pd.DataFrame()
+        df = pd.concat(dfs)
+        df.adate = pd.to_datetime(df.adate)
+        df.xdate = pd.to_datetime(df.xdate)
+        df.rdate = pd.to_datetime(df.rdate)
+        df.give = df.give.astype(np.float64)
+        df.trans = df.trans.astype(np.float64)
+        df.divpay = df.divpay.astype(np.float64)
+        df['type'] = 'bonus'
+        #print df
+        #df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
 
 
     dfs1 = []
@@ -292,21 +289,20 @@ def get_bonus_and_ri(code, timeout=5):
             rinfo['rdate'] = '1900-1-1'
         rinfo['code'] = code
         write_ri_to_db(rinfo)
-    #     df = pd.DataFrame()
-    #     df = df.from_dict(rinfo, orient='index')
-    #     dfs1.append(df.T)
-    # df = pd.concat(dfs1)
-    # df.adate = pd.to_datetime(df.adate)
-    # df.xdate = pd.to_datetime(df.xdate)
-    # df.rdate = pd.to_datetime(df.rdate)
-    # df.ri = pd.to_numeric(df.ri)
-    # df.riprice = pd.to_numeric(df.riprice)
-    # df.basecap = pd.to_numeric(df.basecap)
-    # print df.dtypes
-    # print 'r'
-    # print df
-    #
-    # df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+        df = pd.DataFrame()
+        df = df.from_dict(rinfo, orient='index')
+        dfs1.append(df.T)
+    if len(dfs1) > 0:
+        df = pd.concat(dfs1)
+        df.adate = pd.to_datetime(df.adate)
+        df.xdate = pd.to_datetime(df.xdate)
+        df.rdate = pd.to_datetime(df.rdate)
+        df.ri = df.ri.astype(np.float64)
+        df.riprice = df.riprice.astype(np.float64)
+        df.basecap = df.basecap.astype(np.float64)
+        df['type'] = 'rightsissue'
+        #print df
+        #df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
 
 
 def is_digit_or_point(c):
@@ -317,7 +313,7 @@ def is_digit_or_point(c):
     else:
         return False
 
-def get_stock_change(code, timeout=60):
+def get_stock_change(code, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vCI_StockStructure/stockid/' + code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
     selector = etree.HTML(content)
@@ -345,22 +341,22 @@ def get_stock_change(code, timeout=60):
             sinfo['prevts'] = prev_tradeable_share
             prev_tradeable_share = sinfo['tradeshare']
             write_stockchange_to_db(sinfo)
-    #         df = pd.DataFrame()
-    #         df = df.from_dict(sinfo, orient='index')
-    #         dfs.append(df.T)
-    # df = pd.DataFrame()
-    # df = pd.concat(dfs)
-    # df.adate = pd.to_datetime(df.adate)
-    # df.xdate = pd.to_datetime(df.xdate)
-    # df.totalshare = pd.to_numeric(df.totalshare)
-    # df.tradeshare = pd.to_numeric(df.tradeshare)
-    # df.limitshare = pd.to_numeric(df.limitshare)
-    # df.prevts = pd.to_numeric(df.prevts)
-    # df.reason = df.reason.str.encode('utf-8')
-    # print df.dtypes
-    # print 's'
-    # print df
-    # df.to_hdf('d:\\HDF5_Data\\sinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+            df = pd.DataFrame()
+            df = df.from_dict(sinfo, orient='index')
+            dfs.append(df.T)
+    if len(dfs) > 0:
+        df = pd.DataFrame()
+        df = pd.concat(dfs)
+        df.adate = pd.to_datetime(df.adate)
+        df.xdate = pd.to_datetime(df.xdate)
+        df.totalshare = df.totalshare.astype(np.float64)
+        df.tradeshare = df.tradeshare.astype(np.float64)
+        df.limitshare = df.limitshare.astype(np.float64)
+        df.prevts = df.prevts.astype(np.float64)
+        df.reason = df.reason.str.encode('utf-8')
+        df['type'] = 'stockchange'
+        #print df
+        #df.to_hdf('d:\\HDF5_Data\\sinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
 
 def convertNone(c):
     if(c == 'None' or c == 'null' or c== 'NULL'):
