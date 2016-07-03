@@ -284,8 +284,6 @@ def trade():
     valid['buyflag'] = valid.buyflag & (valid.open > valid.lowlimit)
     valid['buyflag'] = valid.buyflag & (valid.open > valid.plowlimit)
 
-    valid.to_csv(TODAYVALIDCSV, encoding='gbk')
-
     print cash
 
     myindex = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
@@ -326,6 +324,8 @@ def trade():
                 availabeCash = availabeCash - amount - fee
                 holding.loc[len(holding)] = (row.code, row.name, volume, row.open, row.open, amount, str(datetime.date.today()), row.open, 0)
                 availablCnt = availablCnt - 1
+
+    valid.to_csv(TODAYVALIDCSV, encoding='gbk')
     holding['cash'] = cash
     holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
     file = open('d:\\trade_log_' + str(datetime.date.today()) + '.txt', mode='w')
