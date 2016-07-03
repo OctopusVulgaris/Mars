@@ -46,8 +46,6 @@ def ComputeCustomIndex(df):
 
     myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
 
-    print datetime.datetime.now() - t1
-
 def round_series(s):
     s = s * 1000
     s = s.apply(round, ndigits=-1)
