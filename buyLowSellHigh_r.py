@@ -30,12 +30,12 @@ def GetTotalCapIndex(x):
     x = x.head(int(len(x) / 10))
     return x.totalcap.sum() / 100000
 
-def ComputeCustomIndex():
-    t1 = datetime.datetime.now()
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
-    df = df[df.code.str.contains(ashare_pattern)]
+def ComputeCustomIndex(df):
+    #t1 = datetime.datetime.now()
+    #df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
+    #df = df[df.code.str.contains(ashare_pattern)]
 
-    print datetime.datetime.now()- t1
+    #print datetime.datetime.now()- t1
     groupbydate = df.groupby(level=0)
     myindex = pd.DataFrame()
     myindex['trdprc'] = groupbydate.apply(GetTotalCapIndex)
@@ -170,7 +170,7 @@ def updateHistoryHigh(df):
 
 def generateYesterdayFile():
     t1 = datetime.datetime.now()
-    sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-6-20'"
+    sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-1-1'"
     print 'reading...'
     aa = pd.read_sql(sql, engine, index_col='date', parse_dates= True, chunksize= 100000)
     df = pd.concat(aa)
@@ -187,7 +187,7 @@ def generateYesterdayFile():
 
     updateHistoryHigh(df)
 
-    ComputeCustomIndex()
+    ComputeCustomIndex(df)
 
 def trade():
     tradinglog = ''
