@@ -155,6 +155,7 @@ def updateHistoryHigh(df):
         hdata = df.loc(axis=0)[instrument.buydate:, instrument.code]
         if hdata.empty:
             print 'fail to find hhigh ' + (instrument.code) + ' ' + str(instrument.buydate)
+            continue
         lastdayhfqratio = hdata.iloc[-1].hfqratio
         hdata['qfqratio'] = hdata.hfqratio / lastdayhfqratio
         hdata.high = hdata.high * hdata.qfqratio
