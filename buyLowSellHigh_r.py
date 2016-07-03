@@ -187,6 +187,7 @@ def generateYesterdayFile():
 
     updateHistoryHigh(df)
 
+    ComputeCustomIndex()
 
 def trade():
     tradinglog = ''
