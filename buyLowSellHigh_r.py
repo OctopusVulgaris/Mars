@@ -193,7 +193,7 @@ def trade():
     while not get:
         try:
             today = utility.get_today_all()
-            if today.index.is_unique:
+            if today.index.is_unique and len(today[today.open>0]) > 500:
                 get = True
         except Exception:
             print 'retrying...'
