@@ -163,7 +163,7 @@ def updateHistoryHigh(df):
 
     holding = holding.groupby(holding.code).apply(getHHighForCode)
 
-    holding.to_csv(HOLDINGCSV, index=False)
+    holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
 
 def generateYesterdayFile():
     t1 = datetime.datetime.now()
