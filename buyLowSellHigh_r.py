@@ -1,5 +1,5 @@
 # -*- coding:utf-8 -*-
-
+import socket
 import sqlalchemy as sa
 import pandas as pd
 import datetime
@@ -343,7 +343,7 @@ def sendmail(log):
     config = ConfigParser.ConfigParser()
     config.read('d:\\tradelog\\mail.ini')
 
-    fromaddr = config.get('mail', 'from')
+    fromaddr = config.get('mail', 'from') + '@' + socket.gethostname()
     toaddr = config.get('mail', 'to')
     password = config.get('mail', 'pw')
     msg = MIMEText(log, 'plain')
