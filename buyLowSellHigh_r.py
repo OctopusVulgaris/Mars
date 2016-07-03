@@ -148,6 +148,9 @@ def updateHistoryHigh(df):
     names = ('code', 'name', 'vol', 'buyprice', 'price', 'cap', 'buydate', 'historyhigh', 'cash')
     holding = pd.read_csv(HOLDINGCSV, header=0, names=names, dtype={'code': np.str, 'name': np.str}, parse_dates=True, encoding='gbk')
 
+    if holding.empty:
+        print 'empty holding.'
+        return
     # get hitory high
     df = df.sort_index()
     for i in range(0, len(holding)):
