@@ -99,12 +99,12 @@ def get_realtime_all_st(retry=60):
 
     full_df[['name','open','pre_close','price','date','code']] = full_df[['date','code','open','pre_close','price','name']]
     names = full_df.columns.tolist()
-    names[names.index('name')] = 'Date'
-    names[names.index('open')] = 'Code'
-    names[names.index('pre_close')] = 'Open'
-    names[names.index('price')] = 'Pre_close'
-    names[names.index('date')] = 'Price'
-    names[names.index('code')] = 'Name'
+    names[names.index('name')] = 'date'
+    names[names.index('open')] = 'code'
+    names[names.index('pre_close')] = 'open'
+    names[names.index('price')] = 'pre_close'
+    names[names.index('date')] = 'price'
+    names[names.index('code')] = 'name'
     full_df.columns = names
     #full_df.to_csv('d:\\ut.csv',encoding='utf-8',index=False)
     finish = time.time()

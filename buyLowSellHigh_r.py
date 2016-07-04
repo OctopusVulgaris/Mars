@@ -1,5 +1,5 @@
 # -*- coding:utf-8 -*-
-
+import socket
 import sqlalchemy as sa
 import pandas as pd
 import datetime
@@ -10,11 +10,41 @@ import json
 import numpy as np
 import re
 from urllib2 import urlopen, Request
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
+import utility
+import talib
+import ConfigParser
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
 st_pattern = r'^ST|^S|^\*ST|退市'
 ashare_pattern = r'^0|^3|^6'
 
+HOLDINGCSV = 'd:\\tradelog\\holding.csv'
+YESTERDAYCSV = 'd:\\tradelog\\yesterday.csv'
+TODAYVALIDCSV = 'd:\\tradelog\\todayValid.csv'
+
+def GetTotalCapIndex(x):
+    x = x.sort_values('totalcap')
+    x = x.head(int(len(x) / 10))
+    return x.totalcap.sum() / 100000
+
+def ComputeCustomIndex(df):
+    #t1 = datetime.datetime.now()
+    #df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
+    #df = df[df.code.str.contains(ashare_pattern)]
+
+    #print datetime.datetime.now()- t1
+    groupbydate = df.groupby(level=0)
+    myindex = pd.DataFrame()
+    myindex['trdprc'] = groupbydate.apply(GetTotalCapIndex)
+    myindex['ma9'] = talib.MA(myindex.trdprc.values, timeperiod=9)
+    myindex['ma12'] = talib.MA(myindex.trdprc.values, timeperiod=12)
+    myindex['ma60'] = talib.MA(myindex.trdprc.values, timeperiod=60)
+    myindex['ma256'] = talib.MA(myindex.trdprc.values, timeperiod=256)
+
+    myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
 
 def round_series(s):
     s = s * 1000
@@ -108,25 +138,37 @@ def prepareMediateFile(df):
     print datetime.datetime.now() - t1
     return df
 
-def updateHoldingFile(df):
-    names = ('code', 'name', 'vol', 'validvol', 'freezevol', 'buyprice', 'earnprice', 'price', 'pct', 'net', 'cap', 'market', 'account', 'ontheway', 'buydate', 'historyhigh', 'cash')
-    holding = pd.read_csv('d:\\holding.csv', header=0, names=names, dtype={'code': np.str, 'name': np.str}, parse_dates=True)
+def getHHighForCode(x):
+    x.historyhigh = x.historyhigh.max()
+    return x
 
+def updateHistoryHigh(df):
+    names = ('code', 'name', 'vol', 'buyprice', 'price', 'cap', 'buydate', 'historyhigh', 'cash')
+    holding = pd.read_csv(HOLDINGCSV, header=0, names=names, dtype={'code': np.str, 'name': np.str}, parse_dates=True, encoding='gbk')
+
+    if holding.empty:
+        print 'empty holding.'
+        return
     # get hitory high
     df = df.sort_index()
     for i in range(0, len(holding)):
         instrument = holding.ix[i]
         hdata = df.loc(axis=0)[instrument.buydate:, instrument.code]
+        if hdata.empty:
+            print 'fail to find hhigh ' + (instrument.code) + ' ' + str(instrument.buydate)
+            continue
         lastdayhfqratio = hdata.iloc[-1].hfqratio
         hdata['qfqratio'] = hdata.hfqratio / lastdayhfqratio
         hdata.high = hdata.high * hdata.qfqratio
-        holding.historyhigh[i] = hdata.high.max()
+        holding.loc[i, 'historyhigh'] = hdata.high.max()
 
-    holding.to_csv('d:\\holding.csv', index=False)
+    holding = holding.groupby(holding.code).apply(getHHighForCode)
+
+    holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
 
 def generateYesterdayFile():
     t1 = datetime.datetime.now()
-    sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-6-20'"
+    sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-1-1'"
     print 'reading...'
     aa = pd.read_sql(sql, engine, index_col='date', parse_dates= True, chunksize= 100000)
     df = pd.concat(aa)
@@ -139,70 +181,83 @@ def generateYesterdayFile():
 
     #lastday = lastday.head(300)
 
-    lastday.to_csv('d:\\yesterday.csv', encoding='gbk')
+    lastday.to_csv(YESTERDAYCSV, encoding='gbk')
 
-    updateHoldingFile(df)
+    updateHistoryHigh(df)
 
+    ComputeCustomIndex(df)
 
 def trade():
+    tradinglog = ''
     get = False
+    todayTotal = 0;
+    print 'retrieving today all...'
     today = pd.DataFrame()
     while not get:
         try:
-            today = ts.get_today_all()
-            if today.index.is_unique:
+            today = utility.get_today_all()
+            if today.index.is_unique and len(today[today.open>0]) > 500:
                 get = True
         except Exception:
             print 'retrying...'
     today = today.set_index('code')
-    yesterday = pd.read_csv('d:\\yesterday.csv', dtype={'code': np.str}, parse_dates=True)
+    yesterday = pd.read_csv(YESTERDAYCSV, dtype={'code': np.str}, parse_dates=True, encoding='gbk')
     yesterday = yesterday.set_index('code')
-    holding = pd.read_csv('d:\\holding.csv',dtype={'code': np.str}, parse_dates=True)
+    holding = pd.read_csv(HOLDINGCSV,dtype={'code': np.str}, parse_dates=True, encoding='gbk')
 
+    print 'selling...'
     #sell
-    cash = holding.cash[0]
+    cash = 200000
+    if not holding.empty:
+        cash = holding.cash[0]
     print cash
     for i in range(0, len(holding)):
         instrument = holding.ix[i]
         oneRicToday = today.loc[instrument.code]
         # trading
         if oneRicToday.open < 0.01:
+            holding.loc[i, 'price'] = row.close
             continue
+        else:
+            holding.loc[i, 'price'] = oneRicToday.open
 
         pos = yesterday.index.get_loc(instrument.code)
         row = yesterday.iloc[pos]
         ratio = oneRicToday.settlement / row.close
         # 1. Check 300
         if not pos < 300:
-            amount = oneRicToday.open * instrument.validvol
-            fee = amount * 0.0018 + instrument.validvol / 1000 * 0.6
+            amount = oneRicToday.open * instrument.vol
+            fee = amount * 0.0018 + instrument.vol / 1000 * 0.6
             cash = cash + amount - fee
-            holding.validvol[i] = 0
-            print 'out 300 sell ' + instrument.code
+            holding.loc[i, 'vol'] = 0
+            msg =  'out 300 sell ' + instrument.code + '\n'
+            tradinglog += msg
             continue
 
         # 2. open high, but not reach limit, sell
-        phigh = row.phigh * ratio
+        phigh = row.high * ratio
         highlimit = row.thighlimit * ratio
         if oneRicToday.open > phigh and oneRicToday.open < highlimit:
-            fee = amount * 0.0018 + instrument.validvol / 1000 * 0.6
+            fee = amount * 0.0018 + instrument.vol / 1000 * 0.6
             cash = cash + amount - fee
-            holding.validvol[i] = 0
-            print 'open high sell ' + instrument.code
+            holding.loc[i, 'vol'] = 0
+            msg = 'open high sell ' + instrument.code + '\n'
+            tradinglog += msg
             continue
         # open less than alert line, sell
         hhigh = instrument.historyhigh * ratio
         if oneRicToday.open < round(hhigh * 1000 * 0.76, -1) / 1000:
-            fee = amount * 0.0018 + instrument.validvol / 1000 * 0.6
+            fee = amount * 0.0018 + instrument.vol / 1000 * 0.6
             cash = cash + amount - fee
-            holding.validvol[i] = 0
-            print 'fallback sell ' + instrument.code
+            holding.loc[i, 'vol'] = 0
+            msg = 'fallback sell ' + instrument.code + '\n'
+            tradinglog += msg
             continue
-    holding = holding[holding.validvol > 0]
-    #buy
-    print cash
-    cnt = len(holding)
+    holding = holding[holding.vol > 0]
+    holding.cap = holding.vol * holding.price
 
+    print 'buying...'
+    #buy
     h300 = yesterday.head(300)
     valid = pd.DataFrame()
     valid['pclose'] = h300.close
@@ -210,6 +265,7 @@ def trade():
     valid['settle'] = today.settlement
     valid['ratio'] = valid.settle / valid.pclose
     valid['name'] = today.name
+    valid['totalcap'] = h300.totalcap
 
     valid['plow'] = h300.low * valid.ratio
     valid['plowlimit'] = h300.lowlimit * valid.ratio
@@ -230,30 +286,53 @@ def trade():
     valid['buyflag'] = valid.buyflag & (valid.open > valid.lowlimit)
     valid['buyflag'] = valid.buyflag & (valid.open > valid.plowlimit)
 
-    valid.to_csv('d:\\todayValid.csv', encoding='gbk')
+    print cash
 
-    for i in range(0, 300):
-        instrument = yesterday.ix[i]
+    myindex = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
+    myindex = myindex.iloc[-1]
 
+    availabeCash = cash
+    if myindex.ma9 < myindex.ma12 and myindex.ma60 < myindex.ma256:
+        availabeCash = 0
+    elif myindex.ma9 < myindex.ma12 or myindex.ma60 < myindex.ma256:
+        availabeCash = (holding.cap.sum() + cash) / 2 - holding.cap.sum()
+
+
+    cnt = len(holding)
     if cnt < 15:
         availablCnt = 15 - cnt
         margin = cash / availablCnt
         valid = valid[valid.buyflag == True]
         valid = valid.reset_index()
         for row in valid.itertuples():
-            if availablCnt <= 0.01:
+            if availablCnt <= 0.01 or availabeCash < 100:
                 break
-            code = row.code
-            open = row.open
+            adjMargin = margin
+            if availabeCash < margin:
+                adjMargin = availabeCash
             # can't buy at high limit
             if abs(row.open - row.highlimit) < 0.01:
                 continue
-            volume = int(margin / row.open / 100) * 100
-            while (margin - volume*row.open - margin*0.00025 - volume/1000*0.6) < 0:
+            volume = int(adjMargin / row.open / 100) * 100
+
+            while (adjMargin - volume*row.open - adjMargin*0.00025 - volume/1000*0.6) < 0 and volume > 0:
                 volume = volume - 100
             if volume > 0:
-                print 'buy ' + row.code + ' at price ' + str(row.open) + ' size ' + str(volume)
+                msg =  'buy ' + row.code + ' at price ' + str(row.open) + ' size ' + str(volume) + '\n'
+                tradinglog += msg
+                amount = row.open*volume
+                fee = amount * 0.00025 + volume / 1000 * 0.6
+                cash = cash - amount - fee
+                availabeCash = availabeCash - amount - fee
+                holding.loc[len(holding)] = (row.code, row.name, volume, row.open, row.open, amount, str(datetime.date.today()), row.open, 0)
                 availablCnt = availablCnt - 1
+
+    valid.to_csv(TODAYVALIDCSV, encoding='gbk')
+    holding['cash'] = cash
+    holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
+    file = open('d:\\trade_log_' + str(datetime.date.today()) + '.txt', mode='w')
+    file.write(tradinglog)
+    file.close()
 
 def getArgs():
     parse = argparse.ArgumentParser()
@@ -262,18 +341,22 @@ def getArgs():
     args=parse.parse_args()
     return vars(args)
 
-def get_today_all():
-    text = urlopen('http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?num=8000&sort=mktcap&asc=0&node=hs_a').read()
-    if text == 'null':
-        return None
-    reg = re.compile(r'\,(.*?)\:')
-    text = reg.sub(r',"\1":', text.decode('gbk') if ct.PY3 else text)
-    text = text.replace('"{symbol', '{"symbol')
-    text = text.replace('{symbol', '{"symbol"')
-    jstr = json.dumps(text, encoding='GBK')
-    js = json.loads(jstr)
-    return pd.DataFrame(pd.read_json(js, dtype={'code': object}))
+def sendmail(log):
+    print 'sending mail'
+    config = ConfigParser.ConfigParser()
+    config.read('d:\\tradelog\\mail.ini')
 
+    fromaddr = config.get('mail', 'from') + '@' + socket.gethostname()
+    toaddr = config.get('mail', 'to')
+    password = config.get('mail', 'pw')
+    msg = MIMEText(log, 'plain')
+    msg['Subject'] = Header('BLSH@' + str(datetime.date.today()))
+    msg['From'] = fromaddr
+    msg['To'] = toaddr
+    sm = smtplib.SMTP_SSL('smtp.qq.com')
+    sm.login(fromaddr, password)
+    sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
+    sm.quit()
 
 if __name__ == "__main__":
     args = getArgs()
@@ -282,4 +365,5 @@ if __name__ == "__main__":
     if (type == 'evening'):
         generateYesterdayFile()
     elif (type == 'morning'):
-        trade()
+        log = trade()
+        sendmail(log)
