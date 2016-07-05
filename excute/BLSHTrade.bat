@@ -1,1 +1,1 @@
-python ..\buyLowSellHigh_r.py -t morning
+python D:\Github\Source\Mars\buyLowSellHigh_r.py -t morning
