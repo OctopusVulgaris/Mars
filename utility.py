@@ -114,6 +114,6 @@ def get_realtime_all_st(retry=60):
 
 if __name__=="__main__":
     df = get_realtime_all_st()
-    df.to_csv('d:\\ut.csv', encoding='utf-8', index=False)
+    df.to_csv('D:\\Tool\\RealTimeStrategy\\x64\\Release\\data\\today.csv', encoding='utf-8', index=False)
     #df = get_today_all()
     #df.to_csv('d:\\ut_all.csv',encoding='utf-8',index=False)

@@ -844,8 +844,16 @@ def update_today_data(code, timeout=60):
         #pass
 
 def postdelta():
-    sql = "update dailydata set totalcap=close * (select totalshare from bonus_ri_sc where code=dailydata.code and totalshare > 0 order by xdate desc limit 1) where date='20160630' and totalcap =0 and open !=0"
-    pd.read_sql(sql, engine)
+    today = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+    sql = "update dailydata set totalcap=close * (select totalshare from bonus_ri_sc where code=dailydata.code and totalshare > 0 order by xdate desc limit 1) where date=\'"+today+"\' and totalcap =0 and open !=0"
+    try:
+        cur.execute(sql)
+    except psycopg2.DatabaseError, e:
+        err = 'Error %s' % e
+        print err
+        conn.rollback()
+        conn.close()
+    conn.commit()
 
 def getArgs():
     parse=argparse.ArgumentParser()
