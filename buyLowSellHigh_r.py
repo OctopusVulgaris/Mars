@@ -189,12 +189,15 @@ def generateYesterdayFile():
 
 def trade():
     tradinglog = ''
+
     get = False
     todayTotal = 0;
     print 'retrieving today all...'
     today = pd.DataFrame()
-    while not get:
+    retry = 0
+    while not get and retry < 15:
         try:
+            retry += 1
             today = utility.get_today_all()
             if today.index.is_unique and len(today[today.open>0]) > 500:
                 get = True
@@ -224,9 +227,9 @@ def trade():
         pos = yesterday.index.get_loc(instrument.code)
         row = yesterday.iloc[pos]
         ratio = oneRicToday.settlement / row.close
+        amount = oneRicToday.open * instrument.vol
         # 1. Check 300
         if not pos < 300:
-            amount = oneRicToday.open * instrument.vol
             fee = amount * 0.0018 + instrument.vol / 1000 * 0.6
             cash = cash + amount - fee
             holding.loc[i, 'vol'] = 0
@@ -330,9 +333,12 @@ def trade():
     valid.to_csv(TODAYVALIDCSV, encoding='gbk')
     holding['cash'] = cash
     holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
-    file = open('d:\\trade_log_' + str(datetime.date.today()) + '.txt', mode='w')
+
+    file = open('d:\\tradelog\\trade_log_' + str(datetime.date.today()) + '.txt', mode='w')
     file.write(tradinglog)
     file.close()
+
+    return tradinglog
 
 def getArgs():
     parse = argparse.ArgumentParser()
@@ -346,17 +352,23 @@ def sendmail(log):
     config = ConfigParser.ConfigParser()
     config.read('d:\\tradelog\\mail.ini')
 
-    fromaddr = config.get('mail', 'from') + '@' + socket.gethostname()
+    fromaddr = config.get('mail', 'from')
     toaddr = config.get('mail', 'to')
     password = config.get('mail', 'pw')
     msg = MIMEText(log, 'plain')
-    msg['Subject'] = Header('BLSH@' + str(datetime.date.today()))
+    msg['Subject'] = Header('BLSH@' + str(datetime.date.today())  + '_' + socket.gethostname())
     msg['From'] = fromaddr
     msg['To'] = toaddr
-    sm = smtplib.SMTP_SSL('smtp.qq.com')
-    sm.login(fromaddr, password)
-    sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
-    sm.quit()
+
+    try:
+        sm = smtplib.SMTP_SSL('smtp.qq.com')
+        sm.ehlo()
+        sm.login(fromaddr, password)
+        sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
+        sm.quit()
+    except Exception, e:
+        print str(e)
+
 
 if __name__ == "__main__":
     args = getArgs()
