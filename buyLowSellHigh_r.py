@@ -194,8 +194,10 @@ def trade():
     todayTotal = 0;
     print 'retrieving today all...'
     today = pd.DataFrame()
-    while not get:
+    retry = 0
+    while not get and retry < 15:
         try:
+            retry += 1
             today = utility.get_today_all()
             if today.index.is_unique and len(today[today.open>0]) > 500:
                 get = True
@@ -359,9 +361,7 @@ def sendmail(log):
     msg['To'] = toaddr
 
     try:
-        sm = smtplib.SMTP('smtp.qq.com')
-        sm.ehlo()
-        sm.starttls()
+        sm = smtplib.SMTP_SSL('smtp.qq.com')
         sm.ehlo()
         sm.login(fromaddr, password)
         sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
