@@ -27,19 +27,31 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%a, %d %b %Y %H:%M:%S',
                     filename='testAnt.log'
                     )
-hdfStore = pd.HDFStore('D:\\HDF5_Data\\brsInfo.h5', complib='blosc')
+hdfStore = pd.HDFStore('D:\\HDF5_Data\\brsInfo.h5', complib='blosc', mode='w')
 
 def get_bonus_and_ri(code, timeout=5):
-    url = r'http://money.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
+    url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
+    content = content.decode('gbk')
     selector = etree.HTML(content)
     bitems = selector.xpath('//*[@id="sharebonus_1"]/tbody/tr')
+    ritems = selector.xpath('//*[@id="sharebonus_2"]/tbody/tr')
+    retry = 0
+    while (len(bitems) < 1 or len(ritems) < 1) and retry < 10:
+        content = requests.get(url, timeout=timeout).content
+        selector = etree.HTML(content)
+        bitems = selector.xpath('//*[@id="sharebonus_1"]/tbody/tr')
+        ritems = selector.xpath('//*[@id="sharebonus_2"]/tbody/tr')
+        retry += 1
+        logging.info('Info retrying %d" bonus' % retry)
     dfs = []
+    dfs1 = []
     for item in bitems:
         binfo = {}
 
         binfo['adate'] = ''.join(item.xpath('td[1]/text()'))
         if(binfo['adate'].find(u'没有数据') > 0):
+            logging.info('Info %s "没有数据" bonus' % code)
             break
         if(binfo['adate'] == '--'):
             binfo['adate'] = '1900-1-1'
@@ -57,8 +69,32 @@ def get_bonus_and_ri(code, timeout=5):
         df = pd.DataFrame()
         df = df.from_dict(binfo, orient='index')
         dfs.append(df.T)
-    if len(dfs) > 0:
+
+    for item in ritems:
+        rinfo = {}
+
+        rinfo['adate'] = ''.join(item.xpath('td[1]/text()'))
+        if (rinfo['adate'].find(u'没有数据') > 0):
+            logging.info('Info %s "没有数据" rightsissue' % code)
+            break
+        if (rinfo['adate'] == '--'):
+            rinfo['adate'] = '1900-1-1'
+        rinfo['ri'] = ''.join(item.xpath('td[2]/text()'))
+        rinfo['riprice'] = ''.join(item.xpath('td[3]/text()'))
+        rinfo['basecap'] = ''.join(item.xpath('td[4]/text()'))
+        rinfo['xdate'] = ''.join(item.xpath('td[5]/text()'))
+        rinfo['rdate'] = ''.join(item.xpath('td[6]/text()'))
+        if (rinfo['xdate'] == '--'):
+            rinfo['xdate'] = '1900-1-1'
+        if (rinfo['rdate'] == '--'):
+            rinfo['rdate'] = '1900-1-1'
+        rinfo['code'] = code
+        # write_ri_to_db(rinfo)
         df = pd.DataFrame()
+        df = df.from_dict(rinfo, orient='index')
+        dfs1.append(df.T)
+
+    if len(dfs) > 0:
         df = pd.concat(dfs)
         df.adate = pd.to_datetime(df.adate)
         df.xdate = pd.to_datetime(df.xdate)
@@ -69,34 +105,13 @@ def get_bonus_and_ri(code, timeout=5):
         df['type'] = 'bonus'
         #print df
         key = 'b' + code
-        hdfStore[key] = df
+        hdfStore.append('bonus', df, min_itemsize={'values': 50})
+        logging.info('Info %s has saved bonus' % code)
         #df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+    else:
+        logging.info('Info %s has empty bonus' % code)
+        logging.info('Info len bitems %d' % len(bitems))
 
-
-    dfs1 = []
-    ritems = selector.xpath('//*[@id="sharebonus_2"]/tbody/tr')
-    for item in ritems:
-        rinfo = {}
-
-        rinfo['adate'] = ''.join(item.xpath('td[1]/text()'))
-        if (rinfo['adate'].find(u'没有数据') > 0):
-            break
-        if(rinfo['adate'] == '--'):
-            rinfo['adate'] = '1900-1-1'
-        rinfo['ri'] = ''.join(item.xpath('td[2]/text()'))
-        rinfo['riprice'] = ''.join(item.xpath('td[3]/text()'))
-        rinfo['basecap'] = ''.join(item.xpath('td[4]/text()'))
-        rinfo['xdate'] = ''.join(item.xpath('td[5]/text()'))
-        rinfo['rdate'] = ''.join(item.xpath('td[6]/text()'))
-        if(rinfo['xdate'] == '--'):
-            rinfo['xdate'] = '1900-1-1'
-        if (rinfo['rdate'] == '--'):
-            rinfo['rdate'] = '1900-1-1'
-        rinfo['code'] = code
-        #write_ri_to_db(rinfo)
-        df = pd.DataFrame()
-        df = df.from_dict(rinfo, orient='index')
-        dfs1.append(df.T)
     if len(dfs1) > 0:
         df1 = pd.concat(dfs1)
         df1.adate = pd.to_datetime(df1.adate)
@@ -108,8 +123,11 @@ def get_bonus_and_ri(code, timeout=5):
         df1['type'] = 'rightsissue'
         #print df
         key = 'r' + code
-        hdfStore[key] = df1
+        hdfStore.append('rightsissue', df1, min_itemsize = {'values': 50})
         #df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+    else:
+        logging.info('Info %s has empty righsissue' % code)
+        logging.info('Info len ritems %d' % len(ritems))
 
 
 def is_digit_or_point(c):
@@ -123,8 +141,17 @@ def is_digit_or_point(c):
 def get_stock_change(code, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vCI_StockStructure/stockid/' + code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
+    content = content.decode('gbk')
     selector = etree.HTML(content)
     tables = selector.xpath('//*[@id="con02-1"]/table')
+    retry = 0
+    while len(tables) < 1 and retry < 10:
+        content = requests.get(url, timeout=timeout).content
+        selector = etree.HTML(content)
+        tables = selector.xpath('//*[@id="con02-1"]/table')
+        retry += 1
+        logging.info('Info retrying %d" stock change' % retry)
+
     prev_tradeable_share = 0.0
     dfs = []
     for table in tables[::-1]:
@@ -164,8 +191,11 @@ def get_stock_change(code, timeout=5):
         df['type'] = 'stockchange'
         #print df
         key = 's' + code
-        hdfStore[key] = df
+        hdfStore.append('stockchange', df, min_itemsize={'values': 50})
         #df.to_hdf('d:\\HDF5_Data\\sinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+    else:
+        logging.info('Info %s has empty stock change' % code)
+        logging.info('Info len sitems %d' % len(tables))
 
 def get_bonus_ri_sc(retry=50, pause=1):
     target_list = get_code_list('', '', engine)
@@ -175,8 +205,27 @@ def get_bonus_ri_sc(retry=50, pause=1):
         while row:
             for _ in range(retry):
                 try:
-                    print 'retrieving ' + row.code.encode("utf-8")
+                    print 'retrieving bonus_and_ri' + row.code.encode("utf-8")
                     get_bonus_and_ri(row.code.encode("utf-8"))
+                    pass
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get today\'s bonus_and_ri data for %s successfully' % row.code.encode("utf-8"))
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    print 'retrieving stock change' + row.code.encode("utf-8")
                     get_stock_change(row.code.encode("utf-8"))
                     pass
                 except Exception as e:
@@ -184,11 +233,12 @@ def get_bonus_ri_sc(retry=50, pause=1):
                     logging.info('Error %s' % e)
                     time.sleep(pause)
                 else:
-                    logging.info('get today\'s bonus data for %s successfully' % row.code.encode("utf-8"))
+                    logging.info('get today\'s stock change data for %s successfully' % row.code.encode("utf-8"))
                     break
             row = next(itr)
     except StopIteration as e:
         pass
+
 
 def getArgs():
     parse=argparse.ArgumentParser()
@@ -200,7 +250,7 @@ def getArgs():
 if __name__=="__main__":
     args = getArgs()
     type = args['t']
-
+    get_bonus_and_ri('300208')
     if (type == 'bonus'):
         get_bonus_ri_sc()
 
