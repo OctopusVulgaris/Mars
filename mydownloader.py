@@ -22,6 +22,7 @@ import datetime
 import logging
 import threading
 import numpy as np
+import pickle
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -226,11 +227,23 @@ def write_stockchange_to_db(sinfo):
             conn.close()
     conn.commit()
 
-def get_bonus_and_ri(code, timeout=5):
+def get_bonus_and_ri(code, timeout=10):
     url = r'http://money.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
-    selector = etree.HTML(content)
+    #pkl = open('d:\\300208.pkl','wb')
+    #pickle.dump(content, pkl)
+    #pkl.close()
+    #pkl = open('d:\\300208.pkl','rb')
+    #content = pickle.load(pkl)
+    ct = content.decode('gbk')
+    #dom = soupparser.fromstring(content)
+    #c1 = etree.tostring(dom)
+
+    #etree.tostring(selector, method="text")
+    selector = etree.HTML(ct)
     bitems = selector.xpath('//*[@id="sharebonus_1"]/tbody/tr')
+    #all = selector.getelementpath('table[1]')
+
     dfs = []
     for item in bitems:
         binfo = {}
@@ -313,10 +326,11 @@ def is_digit_or_point(c):
     else:
         return False
 
-def get_stock_change(code, timeout=5):
+def get_stock_change(code, timeout=10):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vCI_StockStructure/stockid/' + code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
-    selector = etree.HTML(content)
+    ct = content.decode('gbk')
+    selector = etree.HTML(ct)
     tables = selector.xpath('//*[@id="con02-1"]/table')
     prev_tradeable_share = 0.0
     dfs = []
@@ -883,7 +897,7 @@ if __name__=="__main__":
         postdelta()
 
     #update_weekly_data()
-    # get_bonus_and_ri('000001')
+    #get_bonus_and_ri('300208')
     # get_stock_change('000001')
     #get_stock_full_daily_data('603519')
     #get_index_full_daily_data('000001')
