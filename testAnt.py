@@ -32,8 +32,8 @@ hdfStore = pd.HDFStore('D:\\HDF5_Data\\brsInfo.h5', complib='blosc', mode='w')
 def get_bonus_and_ri(code, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
-    content = content.decode('gbk')
-    selector = etree.HTML(content)
+    ct = content.decode('gbk')
+    selector = etree.HTML(ct)
     bitems = selector.xpath('//*[@id="sharebonus_1"]/tbody/tr')
     ritems = selector.xpath('//*[@id="sharebonus_2"]/tbody/tr')
     retry = 0
@@ -141,8 +141,8 @@ def is_digit_or_point(c):
 def get_stock_change(code, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vCI_StockStructure/stockid/' + code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
-    content = content.decode('gbk')
-    selector = etree.HTML(content)
+    ct = content.decode('gbk')
+    selector = etree.HTML(ct)
     tables = selector.xpath('//*[@id="con02-1"]/table')
     retry = 0
     while len(tables) < 1 and retry < 10:
