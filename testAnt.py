@@ -1,8 +1,5 @@
 # -*- coding:utf-8 -*-
 
-
-
-
 import pandas as pd
 import tushare as ts
 import numpy as np
@@ -27,9 +24,8 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%a, %d %b %Y %H:%M:%S',
                     filename='testAnt.log'
                     )
-hdfStore = pd.HDFStore('D:\\HDF5_Data\\brsInfo.h5', complib='blosc', mode='w')
 
-def get_bonus_and_ri(code, timeout=5):
+def get_bonus_and_ri(code, brsStore, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
     ct = content.decode('gbk')
@@ -105,7 +101,7 @@ def get_bonus_and_ri(code, timeout=5):
         df['type'] = 'bonus'
         #print df
         key = 'b' + code
-        hdfStore.append('bonus', df, min_itemsize={'values': 50})
+        brsStore.append('bonus', df, min_itemsize={'values': 50})
         logging.info('Info %s has saved bonus' % code)
         #df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
     else:
@@ -123,7 +119,7 @@ def get_bonus_and_ri(code, timeout=5):
         df1['type'] = 'rightsissue'
         #print df
         key = 'r' + code
-        hdfStore.append('rightsissue', df1, min_itemsize = {'values': 50})
+        brsStore.append('rightsissue', df1, min_itemsize = {'values': 50})
         #df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
     else:
         logging.info('Info %s has empty righsissue' % code)
@@ -138,7 +134,7 @@ def is_digit_or_point(c):
     else:
         return False
 
-def get_stock_change(code, timeout=5):
+def get_stock_change(code, brsStore, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vCI_StockStructure/stockid/' + code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
     ct = content.decode('gbk')
@@ -191,13 +187,14 @@ def get_stock_change(code, timeout=5):
         df['type'] = 'stockchange'
         #print df
         key = 's' + code
-        hdfStore.append('stockchange', df, min_itemsize={'values': 50})
+        brsStore.append('stockchange', df, min_itemsize={'values': 50})
         #df.to_hdf('d:\\HDF5_Data\\sinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
     else:
         logging.info('Info %s has empty stock change' % code)
         logging.info('Info len sitems %d' % len(tables))
 
 def get_bonus_ri_sc(retry=50, pause=1):
+    brsStore = pd.HDFStore('D:\\HDF5_Data\\brsInfo.h5', complib='blosc', mode='w')
     target_list = get_code_list('', '', engine)
     itr = target_list.itertuples()
     try:
@@ -206,7 +203,7 @@ def get_bonus_ri_sc(retry=50, pause=1):
             for _ in range(retry):
                 try:
                     print 'retrieving bonus_and_ri' + row.code.encode("utf-8")
-                    get_bonus_and_ri(row.code.encode("utf-8"))
+                    get_bonus_and_ri(row.code.encode("utf-8"), brsStore)
                     pass
                 except Exception as e:
                     err = 'Error %s' % e
@@ -226,7 +223,7 @@ def get_bonus_ri_sc(retry=50, pause=1):
             for _ in range(retry):
                 try:
                     print 'retrieving stock change' + row.code.encode("utf-8")
-                    get_stock_change(row.code.encode("utf-8"))
+                    get_stock_change(row.code.encode("utf-8"), brsStore)
                     pass
                 except Exception as e:
                     err = 'Error %s' % e
@@ -239,6 +236,63 @@ def get_bonus_ri_sc(retry=50, pause=1):
     except StopIteration as e:
         pass
 
+def convertNone(c):
+    if(c == 'None' or c == 'null' or c== 'NULL'):
+        return float(0.00)
+    else:
+        return float(c)
+
+def get_stock_full_daily_data(code, daykStore, timeout=3):
+    if code[0] == '6':
+        url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
+    else:
+        url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
+
+    r = requests.get(url, timeout=timeout)
+    data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期', parse_dates=True)
+    data.index.names = ['date']
+    if not data.empty:
+        data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo','totalcap','tradeablecap']
+        data['code'] = pd.Series(code, index=data.index)
+        data['netchng'] = data['netchng'].apply(convertNone)
+        data['pctchng'] = data['pctchng'].apply(convertNone)
+        data['turnoverrate'] = data['turnoverrate'].apply(convertNone)
+        data['nameutf'] = 'utf8'
+        data.nameutf = data.name.str.encode('utf-8')
+        del data['name']
+        data.columns = ['code', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng',
+                        'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name']
+        data['hfqratio'] = 1.0
+        data = data.reset_index()
+        data = data.set_index(['code', 'date'])
+#        data.to_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+        daykStore.append('dayk', data, min_itemsize={'values': 30})
+
+
+def get_all_full_daily_data(retry=50, pause=1):
+    daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='w')
+    target_list = get_code_list('', '', engine)
+    llen = len(target_list)
+    cnt = 0
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    get_stock_full_daily_data(row.code.encode("utf-8"), daykStore)
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get daily data for %s successfully' % row.code.encode("utf-8"))
+                    cnt += 1
+                    print 'retrieved ' + row.code.encode("utf-8") + ', ' + str(cnt) + ' of ' + str(llen)
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
 
 def getArgs():
     parse=argparse.ArgumentParser()
@@ -250,9 +304,10 @@ def getArgs():
 if __name__=="__main__":
     args = getArgs()
     type = args['t']
-    get_bonus_and_ri('300208')
     if (type == 'bonus'):
         get_bonus_ri_sc()
+    elif (type == 'full'):
+        get_all_full_daily_data()
 
 
 

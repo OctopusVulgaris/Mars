@@ -69,7 +69,7 @@ def sell(stock, price, date, hfqratio, type, pamo):
     profit = amount - stock.amount - fee
     delta = amount - fee
     cash = cash + delta
-    #print 'sell ' + str(stock.code) + ', vol ' + str(stock.volume) + ', price ' + str(price)+' , ' + str(amount) + ' , ' + str(profit) + ', ' + str(stock.hfqratio)+ ', ' +'date ' + str(date)
+    print 'sell ' + str(stock.code) + ', vol ' + str(stock.volume) + ', price ' + str(price)+' , ' + str(amount) + ' , ' + str(profit) + ', ' + str(stock.hfqratio)+ ', ' +'date ' + str(date)
     #holding_cnt -= 1
     transaction_log.append((date, type, stock.code, amount/stock.volume, stock.volume, amount,  profit, hfqratio, fee))
 
@@ -102,7 +102,7 @@ def buy(code, price, margin, date, hfqratio, pmao):
     prevAmo = pmao * 0.005
     volume = 0
     tmpvol = 0
-    #print 'buy ' + str(code) + ', vol ' + str(margin) + ', price ' + str(price) + ', date ' + str(date)
+    print 'buy ' + str(code) + ', vol ' + str(margin) + ', price ' + str(price) + ', date ' + str(date)
     if margin > pmao:
         volume = int(prevAmo / price / 100) * 100
         tmpvol = int((margin - prevAmo) / (price * 1.02) / 100) * 100
@@ -188,18 +188,22 @@ def handle_day(x):
     #buy
     if cash > 0:
         cnt = holdingNum()
+        #print 'cnt=' + str(cnt)
         if cnt < max_holdings:
             availablCnt = max_holdings - cnt
             margin = cash / availablCnt
             valid = x.head(poolsize)
             valid = valid[valid.buyflag == True]
+           # print 'valid len=' + str(len(valid))
             for row in valid.itertuples():
                 if availablCnt <= 0.01:
+                    #print 'avaCnt=' + str(availablCnt)
                     break
                 code = row.Index[1]
                 open = row.open
                 #can't buy at high limit
-                if (row.open - row.highlimit) < 0.01:
+                if abs(row.open - row.highlimit) < 0.01:
+                    #print 'open==highlimit' + str(open)
                     continue
                 buy(code, open, margin, date, row.hfqratio, row.pamo)
                 availablCnt = availablCnt - 1
@@ -294,8 +298,8 @@ def calc(x):
     # on day data, value exist no matter haltx
     result['ptotalcap'] = x.index - 1
     result['ptotalcap'] = result.ptotalcap.map(x.totalcap)
-    result['ptradeablecap'] = x.index - 1
-    result['ptradeablecap'] = result.ptradeablecap.map(x.tradeablecap)
+    #result['ptradeablecap'] = x.index - 1
+    #result['ptradeablecap'] = result.ptradeablecap.map(x.tradeablecap)
 
     result['name'] = x.name
     #result.loc[:, 'totalcap'] = x.totalcap
@@ -313,7 +317,7 @@ def GetTotalCapIndex(x):
 def csvtoHDF():
     t1 = datetime.datetime.now()
     print 'reading...'
-    aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'tradeablecap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
+    aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
     df = pd.concat(aa)
 
     print len(df)
@@ -330,13 +334,21 @@ def csvtoHDF():
 def sqltoHDF():
     t1 = datetime.datetime.now()
     print 'reading...'
-    aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
+    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
+    aa = pd.read_sql_table('dailydata', engine, index_col='date', columns=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000)
     df = pd.concat(aa)
 
     print len(df)
 
     df.sort_index(inplace=True)
     print datetime.datetime.now() - t1
+    df['nameutf'] = 'utf8'
+    df['codeutf'] = 'utf8'
+    df.nameutf = df.name.str.encode('utf-8')
+    df.codeutf = df.code.str.encode('utf-8')
+    del df['name']
+    del df['code']
+    df.columns = ['close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio', 'name', 'code']
 
     print 'saving...'
     df.to_hdf('d:\\HDF5_Data\\dailydata.hdf','day',mode='w', format='t', complib='blosc')
@@ -421,8 +433,7 @@ def Processing():
     print datetime.datetime.now() - t1
 
 
-
-csvtoHDF()
-prepareMediateFile()
-#Processing()
+#sqltoHDF()
+#prepareMediateFile()
+Processing()
 #ComputeCustomIndex()
