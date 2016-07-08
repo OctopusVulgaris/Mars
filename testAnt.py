@@ -294,6 +294,43 @@ def get_all_full_daily_data(retry=50, pause=1):
     except StopIteration as e:
         pass
 
+def close2PrevClose(x):
+    r = pd.Series(0, x.index)
+    x.close.replace('0', inplace=True)
+    r[1:] = x.ix[:len(x) - 1].close.values
+    return r.reset_index(level=0, drop=True)
+
+def calc():
+    dayk = pd.HDFStore('d:\\HDF5_Data\\dailydata.h5')
+    df = dayk['dayk']
+    df = df.sort_index()
+    brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r')
+    bi = brs['bonus']
+    bi = bi[bi.xdate > '1990-1-1']
+    bi = bi.reset_index().groupby(['code', 'xdate']).sum()
+    if not bi.index.is_unique:
+        raise IndexError('bonus index is not unique')
+    ri = brs['rightissue']
+    ri = ri[ri.xdate > '1990-1-1']
+    ri = ri.set_index(['code', 'xdate'])
+    if not ri.index.is_unique:
+        raise IndexError('rightsissue index is not unique')
+    si = brs['stockchange']
+    si = si[si.xdate > '1990-1-1']
+    si = si[(si.reason == '股权分置') | (si.reason == '拆细')].set_index(['code', 'xdate'])
+    if not si.index.is_unique:
+        raise IndexError('stockchange index is not unique')
+    #merge bi, ri
+    sPclose = df.groupby(level=0).apply(close2PrevClose)
+    bi.pclose = sPclose.reindex(bi.index, method='pad')
+    bi['riprice'] = ri.riprice
+    bi['ri'] = bi.ri
+    bi = bi.fillna(0)
+
+
+
+
+
 def getArgs():
     parse=argparse.ArgumentParser()
     parse.add_argument('-t', type=str, choices=['full', 'delta','bonus','bnd'], default='bonus', help='download type')
@@ -304,10 +341,8 @@ def getArgs():
 if __name__=="__main__":
     args = getArgs()
     type = args['t']
-    if (type == 'bonus'):
-        get_bonus_ri_sc()
-    elif (type == 'full'):
-        get_all_full_daily_data()
+    get_bonus_ri_sc()
+    get_all_full_daily_data()
 
 
 

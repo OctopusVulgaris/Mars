@@ -1,2 +1,2 @@
-python D:\Github\Source\Mars\updateStockList.py
-python D:\Github\Source\Mars\mydownloader.py -t full
+python D:\project\OctopusVulgaris\Mars\updateStockList.py
+python D:\project\OctopusVulgaris\Mars\mydownloader.py -t full
