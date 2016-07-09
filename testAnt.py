@@ -266,6 +266,7 @@ def get_stock_full_daily_data(code, daykStore, timeout=3):
         data = data.reset_index()
         data = data.set_index(['code', 'date'])
 #        data.to_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+        data = data.sort_index()
         daykStore.append('dayk', data, min_itemsize={'values': 30})
 
 
@@ -300,34 +301,56 @@ def close2PrevClose(x):
     r[1:] = x.ix[:len(x) - 1].close.values
     return r.reset_index(level=0, drop=True)
 
+def cumprod(x):
+    return x.cumprod()
+
 def calc():
-    dayk = pd.HDFStore('d:\\HDF5_Data\\dailydata.h5')
-    df = dayk['dayk']
-    df = df.sort_index()
+    t1 = datetime.datetime.now()
+    dayk = pd.HDFStore('d:\\HDF5_Data\\dailydata.h5', mode='r')
     brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r')
+    df = dayk['dayk']
     bi = brs['bonus']
+    ri = brs['rightsissue']
+    si = brs['stockchange']
+    dayk.close()
+    brs.close()
+
+    df = df.sort_index()
     bi = bi[bi.xdate > '1990-1-1']
-    bi = bi.reset_index().groupby(['code', 'xdate']).sum()
+    bi = bi.reset_index(drop=True).groupby(['code', 'xdate']).sum()
     if not bi.index.is_unique:
         raise IndexError('bonus index is not unique')
-    ri = brs['rightissue']
     ri = ri[ri.xdate > '1990-1-1']
     ri = ri.set_index(['code', 'xdate'])
     if not ri.index.is_unique:
         raise IndexError('rightsissue index is not unique')
-    si = brs['stockchange']
     si = si[si.xdate > '1990-1-1']
     si = si[(si.reason == '股权分置') | (si.reason == '拆细')].set_index(['code', 'xdate'])
+    si = si[(si.tradeshare > 0) & (si.prevts > 0)]
     if not si.index.is_unique:
         raise IndexError('stockchange index is not unique')
     #merge bi, ri
     sPclose = df.groupby(level=0).apply(close2PrevClose)
-    bi.pclose = sPclose.reindex(bi.index, method='pad')
+    bi['pclose'] = sPclose.reindex(bi.index, method='pad')
     bi['riprice'] = ri.riprice
-    bi['ri'] = bi.ri
+    bi['ri'] = ri.ri
     bi = bi.fillna(0)
+    print datetime.datetime.now() - t1
 
+    #give + divpay + rightsissue
+    factor = (bi.give + bi.trans) / 10 + bi.divpay / (bi.pclose - bi.divpay) + bi.pclose * (1 + bi.ri / 10) / (bi.pclose + bi.riprice * bi.ri / 10)
 
+    t2 = datetime.datetime.now()
+    bsIndex = factor.index.union(si.index)
+    factor = factor.reindex(bsIndex, fill_value=0)
+    factor = si.tradeshare / si.prevts
+    combinedIndex = df.index.union(factor.index)
+    df = df.reindex(combinedIndex, fill_value=0)
+    df.hfqratio = factor
+    df.hfqratio.fillna(1, inplace=True)
+    df.hfqratio = df.hfqratio.groupby(level=0).apply(cumprod)
+    print datetime.datetime.now() - t2
+    return df
 
 
 
