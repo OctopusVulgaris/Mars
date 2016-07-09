@@ -14,7 +14,7 @@ import utility
 import datetime
 import time
 import logging
-import threading
+
 
 from dataloader import engine, get_code_list
 
@@ -242,11 +242,14 @@ def convertNone(c):
     else:
         return float(c)
 
-def get_stock_full_daily_data(code, daykStore, timeout=3):
+def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1990,1,2), timeout=3):
+    sdate = startdate.strftime('%Y%m%d')
+    enddate = datetime.date.today() - datetime.timedelta(days=1)
+    edate = enddate.strftime('%Y%m%d')
     if code[0] == '6':
-        url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
+        url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
     else:
-        url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
+        url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
 
     r = requests.get(url, timeout=timeout)
     data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期', parse_dates=True)
@@ -270,7 +273,7 @@ def get_stock_full_daily_data(code, daykStore, timeout=3):
         daykStore.append('dayk', data, min_itemsize={'values': 30})
 
 
-def get_all_full_daily_data(retry=50, pause=1):
+def get_full_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='w')
     target_list = get_code_list('', '', engine)
     llen = len(target_list)
@@ -281,7 +284,7 @@ def get_all_full_daily_data(retry=50, pause=1):
         while row:
             for _ in range(retry):
                 try:
-                    get_stock_full_daily_data(row.code.encode("utf-8"), daykStore)
+                    get_stock_daily_data_163(row.code.encode("utf-8"), daykStore)
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
@@ -295,6 +298,78 @@ def get_all_full_daily_data(retry=50, pause=1):
     except StopIteration as e:
         pass
 
+def get_delta_daily_data_163(retry=50, pause=1):
+    daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='a')
+    tmpdf = daykStore.select('dayk', where='date > \'2016-7-1\'')
+    if tmpdf.empty:
+        print 'error, empty dayk'
+        logging.info('error, empty dayk')
+        return
+    startdate = tmpdf.index.get_level_values(1)[-1] + datetime.timedelta(days=1)
+    target_list = get_code_list('', '', engine)
+    llen = len(target_list)
+    cnt = 0
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    get_stock_daily_data_163(row.code.encode("utf-8"), daykStore, startdate)
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get delta daily data for %s successfully' % row.code.encode("utf-8"))
+                    cnt += 1
+                    print 'retrieved delta ' + row.code.encode("utf-8") + ', ' + str(cnt) + ' of ' + str(llen)
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
+def close_check(row):
+    if row.open - 0.0 < 0.000001:
+        row.close = 0.0
+    row.totalcap *= 10000
+    row.tradeablecap *= 10000
+    return row
+
+def get_today_all_from_sina(retry=50, pause=10):
+    df = utility.get_today_all()
+
+    df.drop('per', 1, inplace=True)
+    df.drop('pb', 1, inplace=True)
+    df.drop('buy', 1, inplace=True)
+    df.drop('sell', 1, inplace=True)
+    df.drop('ticktime', 1, inplace=True)
+    df.drop('symbol', 1, inplace=True)
+
+    df[['amount', 'changepercent', 'code', 'high', 'low', 'mktcap', 'name', 'nmc', 'open', 'pricechange', 'settlement', 'trade', 'turnoverratio', 'volume']] = df[['trade', 'high', 'low', 'open', 'settlement', 'pricechange', 'changepercent', 'turnoverratio', 'volume', 'amount', 'mktcap', 'nmc', 'name', 'code']]
+    df.columns = ['close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name', 'code']
+    df = df.apply(close_check, axis=1)
+    df['hfqratio'] = 1
+
+    #get what missed in sina today all
+    target_list = get_code_list('', '', engine)
+    target_list = target_list.set_index('code')
+    diff = target_list.index.difference(df.code).str.encode('utf-8')
+    a = utility.get_realtime_all_st(diff.values)
+    a = a[['name', 'open', 'pre_close', 'price', 'high', 'low', 'volume', 'amount', 'date', 'code']]
+    a.columns = ['name', 'open', 'prevclose', 'close', 'high', 'low', 'vol', 'amo', 'date', 'code']
+    a.amo = a.amo.astype(np.int64)
+    a = a.set_index(['code', 'date'])
+
+    date = datetime.date.today()
+    df['date'] = date
+    df = df.set_index(['code', 'date'])
+    df = df.combine_first(a)
+    df = df.fillna(0)
+
+    df.to_hdf('d:\\HDF5_Data\\today.hdf', 'tmp', mode='w', format='f', complib='blosc')
+
+
 def close2PrevClose(x):
     r = pd.Series(0, x.index)
     x.close.replace('0', inplace=True)
@@ -306,12 +381,12 @@ def cumprod(x):
 
 def calcFullRatio():
     t1 = datetime.datetime.now()
-    dayk = pd.HDFStore('d:\\HDF5_Data\\dailydata.h5', mode='a')
-    brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r')
-    df = dayk['dayk']
-    bi = brs['bonus']
-    ri = brs['rightsissue']
-    si = brs['stockchange']
+    dayk = pd.HDFStore('d:\\HDF5_Data\\dailydata.h5', mode='a', complib='blosc')
+    brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r', complib='blosc')
+    df = dayk.select('dayk')
+    bi = brs.select('bonus')
+    ri = brs.select('rightsissue')
+    si = brs.select('stockchange')
     brs.close()
 
     df = df.sort_index()
@@ -349,7 +424,8 @@ def calcFullRatio():
     df.hfqratio = all
     #df.hfqratio.fillna(1, inplace=True)
     print datetime.datetime.now() - t2
-    dayk['dayk'] = df
+    dayk.put('dayk', df, format='t')
+
     dayk.close()
 
 def getArgs():

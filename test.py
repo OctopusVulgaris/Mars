@@ -35,8 +35,9 @@ def get5min():
             open = row[3]
             try:
                 sql = 'select price, time, volume, amount from tick_tbl_' + code + ' where time > \'' + str(date) + ' 00:00:00\' and time < \'' + str(date) + ' 09:35:00\''
-                r = pd.read_sql(sql, engine, index_col='price')
+                r = pd.read_sql(sql, engine, index_col='time')
                 r['code'] = code
+                r['open'] = open
                 tick5min.append('tick', r)
                 row = next(itr)
             except Exception:
@@ -44,3 +45,5 @@ def get5min():
             print 'finish ' + str(cnt) + ' of ' + str(size) + ' in ' + str(datetime.datetime.now() - t1)
     except StopIteration:
         pass
+
+get5min()
