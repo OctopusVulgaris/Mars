@@ -14,7 +14,7 @@ def download_tick(start_code, end_code):
     try:
         row = next(itr)
         while row:
-            mydownloader.request_history_tick(row.code, engine, start_date=datetime.datetime(2016,03,31), end_date=datetime.datetime(2016,05,15))
+            mydownloader.request_history_tick(row.code, engine, start_date=datetime.datetime(2006,1,2), end_date=datetime.datetime(2016,7,9))
             row = next(itr)
     except StopIteration:
         pass

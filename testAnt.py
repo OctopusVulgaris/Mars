@@ -304,15 +304,14 @@ def close2PrevClose(x):
 def cumprod(x):
     return x.cumprod()
 
-def calc():
+def calcFullRatio():
     t1 = datetime.datetime.now()
-    dayk = pd.HDFStore('d:\\HDF5_Data\\dailydata.h5', mode='r')
+    dayk = pd.HDFStore('d:\\HDF5_Data\\dailydata.h5', mode='a')
     brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r')
     df = dayk['dayk']
     bi = brs['bonus']
     ri = brs['rightsissue']
     si = brs['stockchange']
-    dayk.close()
     brs.close()
 
     df = df.sort_index()
@@ -326,33 +325,32 @@ def calc():
         raise IndexError('rightsissue index is not unique')
     si = si[si.xdate > '1990-1-1']
     si = si[(si.reason == '股权分置') | (si.reason == '拆细')].set_index(['code', 'xdate'])
-    si = si[(si.tradeshare > 0) & (si.prevts > 0)]
+    si = si[(si.tradeshare > si.prevts) & (si.prevts > 0)]
     if not si.index.is_unique:
         raise IndexError('stockchange index is not unique')
     #merge bi, ri
+    bi = bi.combine_first(ri[['riprice', 'ri']])
+    bi = bi.fillna(0)
     sPclose = df.groupby(level=0).apply(close2PrevClose)
     bi['pclose'] = sPclose.reindex(bi.index, method='pad')
-    bi['riprice'] = ri.riprice
-    bi['ri'] = ri.ri
-    bi = bi.fillna(0)
+    bi['b'] = (bi.pclose - bi.riprice) / bi.riprice
+    bi = bi[bi.b > 0.05]
     print datetime.datetime.now() - t1
 
-    #give + divpay + rightsissue
-    factor = (bi.give + bi.trans) / 10 + bi.divpay / (bi.pclose - bi.divpay) + bi.pclose * (1 + bi.ri / 10) / (bi.pclose + bi.riprice * bi.ri / 10)
-
     t2 = datetime.datetime.now()
-    bsIndex = factor.index.union(si.index)
-    factor = factor.reindex(bsIndex, fill_value=0)
-    factor = si.tradeshare / si.prevts
-    combinedIndex = df.index.union(factor.index)
-    df = df.reindex(combinedIndex, fill_value=0)
-    df.hfqratio = factor
-    df.hfqratio.fillna(1, inplace=True)
-    df.hfqratio = df.hfqratio.groupby(level=0).apply(cumprod)
+    #give + divpay + rightsissue
+    factor = (bi.give + bi.trans) / 10 + bi.divpay / 10 / (bi.pclose - (bi.divpay / 10)) + bi.pclose * (1 + bi.ri / 10) / (bi.pclose + bi.riprice * bi.ri / 10)
+
+    all = si.tradeshare / si.prevts
+    all = all.combine_first(factor)
+    combinedIndex = all.index.union(df.index)
+    all = all.reindex(combinedIndex, fill_value=1)
+    #all = all.groupby(level=0).apply(cumprod)
+    df.hfqratio = all
+    #df.hfqratio.fillna(1, inplace=True)
     print datetime.datetime.now() - t2
-    return df
-
-
+    dayk['dayk'] = df
+    dayk.close()
 
 def getArgs():
     parse=argparse.ArgumentParser()
