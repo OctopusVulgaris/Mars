@@ -14,6 +14,11 @@ from urllib2 import urlopen, Request
 full_df = pd.DataFrame()
 mutex = threading.Lock()
 
+def round_series(s):
+    s = s * 1000
+    s = s.apply(round, ndigits=-1)
+    return s / 1000
+
 def get_today_all():
     text = urlopen('http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?num=8000&sort=mktcap&asc=0&node=hs_a&symbol=&_s_r_a=page&page=0').read()
     if text == 'null':

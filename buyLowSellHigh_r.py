@@ -13,13 +13,13 @@ from urllib2 import urlopen, Request
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
-import utility
+from utility import round_series, get_today_all
 import talib
 import ConfigParser
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
 st_pattern = r'^ST|^S|^\*ST|退市'
-ashare_pattern = r'^0|^3|^6'
+
 
 HOLDINGCSV = 'd:\\tradelog\\holding.csv'
 YESTERDAYCSV = 'd:\\tradelog\\yesterday.csv'
@@ -46,11 +46,6 @@ def ComputeCustomIndex(df):
 
     myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
 
-def round_series(s):
-    s = s * 1000
-    s = s.apply(round, ndigits=-1)
-    return s / 1000
-
 def sort(x):
 
     x = x.sort_values('totalcap', ascending=True)
@@ -60,73 +55,79 @@ def sort(x):
 
 def calc(x):
 
-    x = x.sort_index()
-    z = x.index
-    x.reset_index(inplace=True)
+    #x = x.sort_index()
+    #z = x.index
+    #x.reset_index(inplace=True)
     valid = x[x.open > 0.01]
-    y = valid.index
+    #y = valid.index
     #reset index to jump halt days
-    valid = valid.reset_index()
+    #valid = valid.reset_index()
 
-    result = pd.DataFrame()
+    #result = pd.DataFrame()
+    validLen = len(valid)
     # yesterday
-    result['hfqratio'] = valid.hfqratio
-    result['phfqratio'] = valid.index - 1
-    result['phfqratio'] = result.phfqratio.map(valid.hfqratio)
+    #result['hfqratio'] = valid.hfqratio
+    valid['phfqratio'] = 1
+    valid['phfqratio'].iloc[1:] = valid.hfqratio.values[:validLen-1]
+    #result['phfqratio'] = valid.index - 1
+    #result['phfqratio'] = result.phfqratio.map(valid.hfqratio)
 
-    factor = result.phfqratio / result.hfqratio
-    result['pclose'] = valid.index - 1
-    result['pclose'] = result.pclose.map(valid.close)
-    result['pclose'] = result.pclose * factor
-    result.pclose = round_series(result.pclose)
-    result['open'] = valid.open
-    result['high'] = valid.high
-    result['low'] = valid.low
-    result['close'] = valid.close
-    result['lowlimit'] = result.pclose * 0.9
-    result['highlimit'] = result.pclose * 1.1
-    result['tlowlimit'] = result.close * 0.9
-    result['thighlimit'] = result.close * 1.1
+    factor = valid.phfqratio / valid.hfqratio
+    valid['pclose'] = 0
+    valid['pclose'].iloc[1:] = valid.close.values[:validLen-1]
+    #result['pclose'] = valid.index - 1
+    #result['pclose'] = result.pclose.map(valid.close)
+    valid['pclose'] = valid.pclose * factor
+    valid.pclose = round_series(valid.pclose)
+    #result['open'] = valid.open
+    #result['high'] = valid.high
+    #result['low'] = valid.low
+    #result['close'] = valid.close
+    valid['lowlimit'] = valid.pclose * 0.9
+    valid['highlimit'] = valid.pclose * 1.1
+    valid['tlowlimit'] = valid.close * 0.9
+    valid['thighlimit'] = valid.close * 1.1
 
     # round all price to two decimal places
-    result.lowlimit = round_series(result.lowlimit)
-    result.highlimit = round_series(result.highlimit)
-    result.tlowlimit = round_series(result.tlowlimit)
-    result.thighlimit = round_series(result.thighlimit)
+    valid.lowlimit = round_series(valid.lowlimit)
+    valid.highlimit = round_series(valid.highlimit)
+    valid.tlowlimit = round_series(valid.tlowlimit)
+    valid.thighlimit = round_series(valid.thighlimit)
 
     #recover to valid index first
-    result = result.set_index(y)
+    #result = result.set_index(y)
     #recover to x.index
-    result = result.reindex(x.index, method='pad')
+    valid = valid.reindex(x.index, method='pad')
 
     # on day data, value exist no matter haltx
 
-    result['name'] = x.name
-    result['totalcap'] = x.totalcap
-    result['hfqratio'] = x.hfqratio
+    #valid['name'] = x.name
+    valid['totalcap'] = x.totalcap
+    valid['hfqratio'] = x.hfqratio
     #recover to date index
-    result = result.set_index(z)
-    return result
+    #result = result.set_index(z)
+    return valid
 
 def prepareMediateFile(df):
     t1 = datetime.datetime.now()
     print len(df)
-    df = df[df.code.str.contains(ashare_pattern)]
 
-    df = df.sort_index()
-    print datetime.datetime.now() - t1
+    #df = df.sort_index()
+    #print datetime.datetime.now() - t1
 
-    groupbycode = df.groupby('code')
+    groupbycode = df.groupby(level=0)
 
     print 'calculating...'
     result = groupbycode.apply(calc)
 
     result = result[result.name.str.startswith('N') != True]
-    result = result.reset_index()
+    result = result.swaplevel(i='code', j='date')
+    #result = result.reset_index()
 
-    print result.columns
-    result = result.set_index(['date', 'code'])
-    result = result.sort_index()
+    #print result.columns
+    #result = result.set_index(['date', 'code'])
+    #result = result.sort_index()
+
 
     groupbydate = result.groupby(level=0)
 
@@ -168,10 +169,11 @@ def updateHistoryHigh(df):
 
 def generateYesterdayFile():
     t1 = datetime.datetime.now()
-    sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-1-1'"
+    #sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-1-1'"
     print 'reading...'
-    aa = pd.read_sql(sql, engine, index_col='date', parse_dates= True, chunksize= 100000)
-    df = pd.concat(aa)
+    #aa = pd.read_sql(sql, engine, index_col='date', parse_dates= True, chunksize= 100000)
+    #df = pd.concat(aa)
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['close', 'high', 'low', 'open', 'totalcap', 'name', 'hfqratio'], where='date > \'2015-1-1\'')
 
     print datetime.datetime.now() - t1
 
@@ -198,7 +200,7 @@ def trade():
     while not get and retry < 15:
         try:
             retry += 1
-            today = utility.get_today_all()
+            today = get_today_all()
             if today.index.is_unique and len(today[today.open>0]) > 500:
                 get = True
         except Exception:

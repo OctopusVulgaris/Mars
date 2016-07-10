@@ -8,6 +8,7 @@ import re
 import requests
 from lxml import etree
 from StringIO import StringIO
+from utility import round_series
 
 import argparse
 import utility
@@ -18,7 +19,7 @@ import logging
 
 from dataloader import engine, get_code_list
 
-
+ashare_pattern = r'^0|^3|^6'
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                     datefmt='%a, %d %b %Y %H:%M:%S',
@@ -235,6 +236,7 @@ def get_bonus_ri_sc(retry=50, pause=1):
             row = next(itr)
     except StopIteration as e:
         pass
+    brsStore.close()
 
 def convertNone(c):
     if(c == 'None' or c == 'null' or c== 'NULL'):
@@ -242,7 +244,7 @@ def convertNone(c):
     else:
         return float(c)
 
-def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1990,1,2), timeout=3):
+def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1997,1,2), timeout=3):
     sdate = startdate.strftime('%Y%m%d')
     enddate = datetime.date.today() - datetime.timedelta(days=1)
     edate = enddate.strftime('%Y%m%d')
@@ -297,6 +299,7 @@ def get_full_daily_data_163(retry=50, pause=1):
             row = next(itr)
     except StopIteration as e:
         pass
+    daykStore.close()
 
 def get_delta_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='a')
@@ -328,6 +331,7 @@ def get_delta_daily_data_163(retry=50, pause=1):
             row = next(itr)
     except StopIteration as e:
         pass
+    daykStore.close()
 
 def close_check(row):
     if row.open - 0.0 < 0.000001:
@@ -346,28 +350,34 @@ def get_today_all_from_sina(retry=50, pause=10):
     df.drop('ticktime', 1, inplace=True)
     df.drop('symbol', 1, inplace=True)
 
-    df[['amount', 'changepercent', 'code', 'high', 'low', 'mktcap', 'name', 'nmc', 'open', 'pricechange', 'settlement', 'trade', 'turnoverratio', 'volume']] = df[['trade', 'high', 'low', 'open', 'settlement', 'pricechange', 'changepercent', 'turnoverratio', 'volume', 'amount', 'mktcap', 'nmc', 'name', 'code']]
-    df.columns = ['close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name', 'code']
+    #df[['amount', 'changepercent', 'code', 'high', 'low', 'mktcap', 'name', 'nmc', 'open', 'pricechange', 'settlement', 'trade', 'turnoverratio', 'volume']] = df[['trade', 'high', 'low', 'open', 'settlement', 'pricechange', 'changepercent', 'turnoverratio', 'volume', 'amount', 'mktcap', 'nmc', 'name', 'code']]
+    #df.columns = ['close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name', 'code']
+    df.columns = ['amo', 'pctchng', 'code', 'high', 'low', 'totalcap', 'name', 'tradeablecap', 'open', 'netchng',
+                  'prevclose', 'close', 'turnoverrate', 'vol']
     df = df.apply(close_check, axis=1)
     df['hfqratio'] = 1
+    df.code = df.code.str.encode('utf-8')
+    df.name = df.name.str.encode('utf-8')
 
     #get what missed in sina today all
     target_list = get_code_list('', '', engine)
     target_list = target_list.set_index('code')
     diff = target_list.index.difference(df.code).str.encode('utf-8')
-    a = utility.get_realtime_all_st(diff.values)
-    a = a[['name', 'open', 'pre_close', 'price', 'high', 'low', 'volume', 'amount', 'date', 'code']]
-    a.columns = ['name', 'open', 'prevclose', 'close', 'high', 'low', 'vol', 'amo', 'date', 'code']
-    a.amo = a.amo.astype(np.int64)
-    a = a.set_index(['code', 'date'])
+    missed = utility.get_realtime_all_st(diff.values)
+    missed = missed[['name', 'open', 'pre_close', 'price', 'high', 'low', 'volume', 'amount', 'date', 'code']]
+    missed.columns = ['name', 'open', 'prevclose', 'close', 'high', 'low', 'vol', 'amo', 'date', 'code']
+    missed.amo = missed.amo.astype(np.int64)
+    missed.code = missed.code.str.encode('utf-8')
+    missed.name = missed.name.str.encode('utf-8')
+    missed = missed.set_index(['code', 'date'])
 
     date = datetime.date.today()
     df['date'] = date
     df = df.set_index(['code', 'date'])
-    df = df.combine_first(a)
+    df = df.combine_first(missed)
     df = df.fillna(0)
 
-    df.to_hdf('d:\\HDF5_Data\\today.hdf', 'tmp', mode='w', format='f', complib='blosc')
+    df.to_hdf('d:\\HDF5_Data\\today.hdf', 'tmp', mode='w', format='t', complib='blosc')
 
 
 def close2PrevClose(x):
@@ -389,16 +399,17 @@ def calcFullRatio():
     si = brs.select('stockchange')
     brs.close()
 
+    df = df[df.code.str.contains(ashare_pattern)]
     df = df.sort_index()
-    bi = bi[bi.xdate > '1990-1-1']
+    bi = bi[bi.xdate > '1997-1-1']
     bi = bi.reset_index(drop=True).groupby(['code', 'xdate']).sum()
     if not bi.index.is_unique:
         raise IndexError('bonus index is not unique')
-    ri = ri[ri.xdate > '1990-1-1']
+    ri = ri[ri.xdate > '1997-1-1']
     ri = ri.set_index(['code', 'xdate'])
     if not ri.index.is_unique:
         raise IndexError('rightsissue index is not unique')
-    si = si[si.xdate > '1990-1-1']
+    si = si[si.xdate > '1997-1-1']
     si = si[(si.reason == '股权分置') | (si.reason == '拆细')].set_index(['code', 'xdate'])
     si = si[(si.tradeshare > si.prevts) & (si.prevts > 0)]
     if not si.index.is_unique:
@@ -409,18 +420,21 @@ def calcFullRatio():
     sPclose = df.groupby(level=0).apply(close2PrevClose)
     bi['pclose'] = sPclose.reindex(bi.index, method='pad')
     bi['b'] = (bi.pclose - bi.riprice) / bi.riprice
-    bi = bi[bi.b > 0.05]
+    #bi = bi[bi.b > 0.05]
     print datetime.datetime.now() - t1
 
     t2 = datetime.datetime.now()
-    #give + divpay + rightsissue
-    factor = (bi.give + bi.trans) / 10 + bi.divpay / 10 / (bi.pclose - (bi.divpay / 10)) + bi.pclose * (1 + bi.ri / 10) / (bi.pclose + bi.riprice * bi.ri / 10)
+
+    adjpclose = (bi.pclose - (bi.divpay / 10) + bi.riprice * bi.ri / 10) / (1 + (bi.give + bi.trans) / 10 + bi.ri / 10)
+    adjpclose = round_series(adjpclose)
+    factor = bi.pclose / adjpclose
+    #factor = (bi.give + bi.trans) / 10 + bi.divpay / 10 / (bi.pclose - (bi.divpay / 10)) + bi.pclose * (1 + bi.ri / 10) / (bi.pclose + bi.riprice * bi.ri / 10)
 
     all = si.tradeshare / si.prevts
     all = all.combine_first(factor)
     combinedIndex = all.index.union(df.index)
     all = all.reindex(combinedIndex, fill_value=1)
-    #all = all.groupby(level=0).apply(cumprod)
+    all = all.groupby(level=0).apply(cumprod)
     df.hfqratio = all
     #df.hfqratio.fillna(1, inplace=True)
     print datetime.datetime.now() - t2
@@ -438,8 +452,10 @@ def getArgs():
 if __name__=="__main__":
     args = getArgs()
     type = args['t']
-    get_bonus_ri_sc()
-    get_all_full_daily_data()
+    #get_bonus_ri_sc()
+    #get_full_daily_data_163()
+    calcFullRatio()
+    #get_today_all_from_sina()
 
 
 
