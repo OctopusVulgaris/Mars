@@ -399,7 +399,7 @@ def calcFullRatio():
     si = brs.select('stockchange')
     brs.close()
 
-    df = df[df.code.str.contains(ashare_pattern)]
+    #df = df[df.index.get_level_values(0).str.contains(ashare_pattern)]
     df = df.sort_index()
     bi = bi[bi.xdate > '1997-1-1']
     bi = bi.reset_index(drop=True).groupby(['code', 'xdate']).sum()
@@ -432,19 +432,20 @@ def calcFullRatio():
 
     all = si.tradeshare / si.prevts
     all = all.combine_first(factor)
+    all.to_hdf('d:\\HDF5_Data\\hfqfactor.hdf', 'factor', mode='w', format='f', complib='blosc')
     combinedIndex = all.index.union(df.index)
     all = all.reindex(combinedIndex, fill_value=1)
     all = all.groupby(level=0).apply(cumprod)
     df.hfqratio = all
     #df.hfqratio.fillna(1, inplace=True)
-    print datetime.datetime.now() - t2
+
     dayk.put('dayk', df, format='t')
 
     dayk.close()
-
+    print datetime.datetime.now() - t2
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['full', 'delta','bonus','bnd'], default='bonus', help='download type')
+    parse.add_argument('-t', type=str, choices=['full', 'delta'], default='full', help='download type')
 
     args=parse.parse_args()
     return vars(args)
@@ -452,9 +453,20 @@ def getArgs():
 if __name__=="__main__":
     args = getArgs()
     type = args['t']
+
+    if (type == 'full'):
+        get_bonus_ri_sc()
+        get_full_daily_data_163()
+        calcFullRatio()
+    elif (type == 'delta'):
+        get_bonus_ri_sc()
+        get_delta_daily_data_163()
+        calcFullRatio()
+
+
     #get_bonus_ri_sc()
-    #get_full_daily_data_163()
-    calcFullRatio()
+    #()
+
     #get_today_all_from_sina()
 
 

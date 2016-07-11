@@ -359,8 +359,8 @@ def sqltoHDF():
 def prepareMediateFile():
     t1 = datetime.datetime.now()
     print 'reading...'
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf','day')
-    df = df[df.code.str.contains(ashare_pattern)]
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk')
+    #df = df[df.code.str.contains(ashare_pattern)]
 
 
     print len(df)
@@ -368,7 +368,7 @@ def prepareMediateFile():
     df.sort_index(inplace=True)
     print datetime.datetime.now() - t1
 
-    groupbycode = df.groupby('code')
+    groupbycode = df.groupby(level=0)
 
     print 'calculating...'
     result = groupbycode.apply(calc)
@@ -396,7 +396,7 @@ def prepareMediateFile():
 
 def ComputeCustomIndex():
     t1 = datetime.datetime.now()
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk')
     df = df[df.code.str.contains(ashare_pattern)]
 
     print datetime.datetime.now()- t1
@@ -434,6 +434,6 @@ def Processing():
 
 
 #sqltoHDF()
-#prepareMediateFile()
-Processing()
+prepareMediateFile()
+#Processing()
 #ComputeCustomIndex()

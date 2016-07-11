@@ -18,7 +18,7 @@ import talib
 import ConfigParser
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
-st_pattern = r'^ST|^S|^\*ST|退市'
+st_pattern = r'^S|^*|退市'
 
 
 HOLDINGCSV = 'd:\\tradelog\\holding.csv'
