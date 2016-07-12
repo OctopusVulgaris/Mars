@@ -77,31 +77,47 @@ def change_dic(x):
     else:
         return x
 
-def request_history_tick(code, engine, start_date, end_date):
-    create_tick_talbe(code)
-
-    cur_day = start_date
-    logging.info('requesting tick, code: ' + code + str(threading.currentThread()))
+def request_history_tick(code, datelist):
 
 
-    while cur_day != end_date:
+    logging.info('start requesting tick, code: ' + code)
+    print 'start requesting tick, code: ' + code
+
+    df = pd.DataFrame()
+    retry = 0
+    for cur_day in datelist:
+        succeeded = False
         try:
-            #logging.info('cur_day: ' + str(cur_day) + str(threading.currentThread()))
-            tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=500)
-            if not tick.empty:
-                if tick.time[0] != 'alert("当天没有数据");':
-                    tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
-                    tick['change'] = tick['change'].apply(change_dic)
-                    tick['time'] = str(cur_day.date()) + ' '+ tick['time']
-                    tick.to_sql('tick_tbl_' + code, engine, if_exists='append', dtype={'time': DateTime})
-                    logging.info('save to tick_tbl_' + code + ' on '+ str(cur_day) + ' thread ' + str(threading.currentThread()))
-
+            while (succeeded == False) and (retry < 10):
+                tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=10)
+                if not tick.empty:
+                    if tick.time[0] != 'alert("当天没有数据");':
+                        tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
+                        tick['change'] = tick['change'].apply(change_dic)
+                        tick['code'] = code
+                        tick['date'] = cur_day
+                        #tick = tick.set_index(['code', 'date'])
+                        tick = tick.sort_values('time')
+                        tick.time = pd.to_timedelta(tick.time)
+                        tick.change = tick.change.astype(float)
+                        df = df.append(tick)
+                        #tick['time'] = str(cur_day.date()) + ' '+ tick['time']
+                        #tick.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
+                        #logging.info('save to tick_tbl_' + code + ' on '+ str(cur_day) + ' thread ' + str(threading.currentThread()))
+                succeeded = True
 
         except Exception:
-            logging.error(str(code) + ' request tick failed on ' + str(cur_day) + str(threading.currentThread()))
 
-        delta = datetime.timedelta(days=1)
-        cur_day = cur_day + delta
+            retry += 1
+            logging.error(str(code) + ' request tick retry ' + str(retry) + ' on ' + str(cur_day))
+
+    logging.info('finished request tick, code: ' + code)
+    print ('finished request tick, code: ' + code)
+    if not df.empty:
+        df = df.set_index(['code', 'date'])
+        df.sort_index()
+    return df
+
 
 def create_test_talbe(code):
     conn = psycopg2.connect("dbname=postgres user=postgres password=postgres")
