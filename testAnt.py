@@ -303,11 +303,12 @@ def get_full_daily_data_163(retry=50, pause=1):
 
 def get_delta_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='a')
-    tmpdf = daykStore.select('dayk', where='date > \'2016-7-1\'')
+    tmpdf = daykStore.select('dayk', start=-10000)
     if tmpdf.empty:
         print 'error, empty dayk'
         logging.info('error, empty dayk')
         return
+    tmpdf = tmpdf.sort_index(level=1, ascending=True)
     startdate = tmpdf.index.get_level_values(1)[-1] + datetime.timedelta(days=1)
     target_list = get_code_list('', '', engine)
     llen = len(target_list)

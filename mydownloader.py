@@ -23,6 +23,7 @@ import logging
 import threading
 import numpy as np
 import pickle
+import os
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -84,6 +85,17 @@ def request_history_tick(code, datelist):
     print 'start requesting tick, code: ' + code
 
     df = pd.DataFrame()
+    if len(datelist < 1):
+        return df
+
+    if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
+        df = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
+        if not df.empty:
+            lastday = df.reset_index(level=1).date[-1].date()
+            lastday += datetime.timedelta(days=1)
+            datelist = datelist[lastday:]
+    if len(datelist < 1):
+        return df
     retry = 0
     for cur_day in datelist:
         succeeded = False
