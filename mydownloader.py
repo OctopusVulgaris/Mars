@@ -25,11 +25,7 @@ import numpy as np
 import pickle
 import os
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S',
-                    filename='log.txt'
-                    )
+
 conn = psycopg2.connect(database="postgres", user="postgres", password="postgres", host="localhost", port="5432")
 cur = conn.cursor()
 
@@ -409,6 +405,155 @@ def convertNone(c):
 def calc_hfqratio(data, bsr, initHfqRatio=1):
     lastestHfqRatio = initHfqRatio
     index = 0
+
+    for row in bsr.itertuples():
+        exdate_valid_flag = 1
+        try:
+            if data.ix[row[10]]['close'] - 0.0 < 0.0000001:
+                exdate_valid_flag = 0
+        except KeyError, e:
+            exdate_valid_flag = 0
+
+        delta = datetime.timedelta(days=1)
+        enddate = row[10]
+        vdate = row[10]
+        prev_valid_date = row[10]
+        if not exdate_valid_flag:
+            while True:
+                rr = enddate
+                rr += delta
+                rdata = data[:rr].tail(1)
+                if rdata.empty:
+                    break
+                else:
+                    cls = rdata.ix[0]['close']
+                    enddate = rdata.index[0]
+                    if cls != 0.0:
+                        try:
+                            itr = rdata.itertuples()
+                            drow = next(itr)
+                            #print drow
+                            while drow:
+                                if drow[3] == 0.0:
+                                    break
+                                prev_valid_date = drow[0]
+                                drow = next(itr)
+                            break
+                        except StopIteration, e:
+                            break
+                    else:
+                        continue
+            try:
+                bsr.loc[index,'xdate'] = datetime.datetime.strptime(str(prev_valid_date), "%Y-%m-%d %H:%M:%S").date()
+            except ValueError, e:
+                bsr.loc[index, 'xdate'] = datetime.datetime.strptime(str(prev_valid_date), "%Y-%m-%d").date()
+        #get prev valid close
+        cls = 0.0
+        enddate = row[10]
+        while True:
+            rr = enddate
+            rr -= delta
+            rdata = data[ rr:].head(1)
+            if rdata.empty:
+                cls = 0.0
+                break
+            else:
+                cls = rdata.ix[-1]['close']
+                enddate = rdata.index[-1]
+                if cls != 0.0:
+                    itr = rdata.itertuples()
+                    drow = next(itr)
+                    while drow:
+                        if drow[3] != 0.0:
+                            cls = drow[3]
+                            break
+                        drow = next(itr)
+                    break
+                else:
+                    continue
+        bsr.loc[index,'preclose'] = cls
+        index += 1
+
+    bsr.sort(['xdate','totalshare'], ascending=[1, 0], inplace=True)
+    bsr.reset_index(inplace=True)
+    bsr.set_index(['xdate', 'type'],inplace=True)
+    prev_hfqratio = lastestHfqRatio
+    prev_xdate = datetime.date(1900, 1, 1)
+    hfqpd = pd.DataFrame(columns=['date', 'hfqratio'])
+
+    for i in range(len(bsr.index.levels[0])):
+        sbsr = bsr.iloc[bsr.index.get_level_values('xdate') == bsr.index.levels[0][i]]
+        stockchangeflag = 0
+        tshare = 0.0
+        prevts = 0.0
+        bonusflag = 0
+        give = 0.0
+        trans = 0.0
+        paydiv = 0.0
+        riflag = 0
+        ri = 0.0
+        riprice = 0.0
+
+        for j in range(3):
+            try:
+                type = sbsr.index[j][1]
+                if(type == 'stockchange'):
+                    stockchangeflag=1
+                    tshare = sbsr['tradeshare'][j]
+                    prevts = sbsr['prevts'][j]
+                elif(type == 'rightsissue'):
+                    riflag = 1
+                    ri = sbsr['ri'][j]
+                    riprice = sbsr['riprice'][j]
+                elif(type == 'bonus'):
+                    bonusflag = 1
+                    give = sbsr['give'][j]
+                    trans = sbsr['transfer'][j]
+                    paydiv = sbsr['paydiv'][j]
+            except IndexError, e:
+                pass
+
+        prevclose = sbsr['preclose'][0]
+
+        if(stockchangeflag):
+            if(tshare != 0 and prevts != 0):
+                hfqratio = tshare / prevts
+            else:
+                hfqratio = lastestHfqRatio
+        else:
+            if prevclose != 0.0:
+                adjcls = (prevclose - paydiv / 10 + riprice * ri / 10) / (1 + give / 10 + trans / 10 + ri / 10)
+                adjcls = round(adjcls * 100) / 100
+                hfqratio = prevclose / adjcls
+            else:
+                hfqratio = lastestHfqRatio
+
+        hfqratio = round(hfqratio, 6)
+        acchfqratio = round(prev_hfqratio * hfqratio, 6)
+        hfqpd = hfqpd.append({'date': sbsr.index[0][0], 'hfqratio': acchfqratio}, ignore_index=True)
+        prev_hfqratio = acchfqratio
+
+    hfqpd.sort(['date',], ascending=[1,], inplace=True)
+    print hfqpd
+    data['hfqratio'] = pd.Series(lastestHfqRatio, index=data.index)
+    logging.info(hfqpd)
+    #print bsr
+
+    prevdate = datetime.date(1900,1,1)
+    prevratio= lastestHfqRatio
+    for row in hfqpd.itertuples():
+        currentdate=row[1]
+        data.loc[currentdate:prevdate,'hfqratio'] = prevratio
+        prevdate=currentdate
+        prevratio=row[2]
+    if not hfqpd.empty:
+        today = datetime.datetime.now().date()
+        data.loc[today:prevdate, 'hfqratio'] = prevratio
+        #print data.to_csv('test.csv', encoding='utf-8')
+
+def calc_hfqratio_bk(data, bsr, initHfqRatio=1):
+    lastestHfqRatio = initHfqRatio
+    index = 0
     for row in bsr.itertuples():
         exdate_valid_flag = 1
         try:
@@ -547,11 +692,11 @@ def get_stock_full_daily_data(code, timeout=60):
         #data.to_csv(name, encoding='utf-8')
 
     sql = "select * from bonus_ri_sc where code=\'" + code + "\' and xdate!='1900-1-1' and (type='bonus' or type='rightsissue' or (type='stockchange' and (reason='股权分置' or reason='拆细'))) order by xdate asc, totalshare desc"
+    #bsr = pd.read_sql(sql, engine, index_col=['xdate', 'type'], parse_dates=True)
     bsr = pd.read_sql(sql, engine)
 
     bsr['preclose'] = pd.Series(0.0, index=bsr.index)
     bsr['hfqratio'] = pd.Series(0.0, index=bsr.index)
-
     calc_hfqratio(data, bsr)
 
     if not data.empty:
@@ -905,6 +1050,12 @@ def getArgs():
     return vars(args)
 
 if __name__=="__main__":
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='log.txt'
+                        )
+
     args = getArgs()
     type = args['t']
 
@@ -927,7 +1078,7 @@ if __name__=="__main__":
     #update_weekly_data()
     #get_bonus_and_ri('300208')
     # get_stock_change('000001')
-    #get_stock_full_daily_data('603519')
+    #get_stock_full_daily_data('000002')
     #get_index_full_daily_data('000001')
     #get_bonus_ri_sc()
     #get_today_all_from_163()
