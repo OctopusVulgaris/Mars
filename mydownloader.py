@@ -92,9 +92,10 @@ def request_history_tick(code, datelist):
             datelist = datelist[lastday:]
     if len(datelist < 1):
         return df
-    retry = 0
+
     for cur_day in datelist:
         succeeded = False
+        retry = 0
         try:
             while (succeeded == False) and (retry < 10):
                 tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=10)
