@@ -13,9 +13,11 @@ from urllib2 import urlopen, Request
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
-from utility import round_series, get_today_all
+from utility import round_series, get_realtime_all_st
 import talib
 import ConfigParser
+import logging
+import sys
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
 st_pattern = r'^S|^\*|退市'
@@ -110,14 +112,15 @@ def calc(x):
 
 def prepareMediateFile(df):
     t1 = datetime.datetime.now()
-    print len(df)
+
+    logging.info('df len %d' % len(df))
 
     #df = df.sort_index()
     #print datetime.datetime.now() - t1
 
     groupbycode = df.groupby(level=0)
 
-    print 'calculating...'
+    logging.info('calculating...')
     result = groupbycode.apply(calc)
 
     result = result[result.name.str.startswith('N') != True]
@@ -136,7 +139,7 @@ def prepareMediateFile(df):
 
     #df = df.loc[datetime.datetime(2008, 1, 1, ):, :]
 
-    print datetime.datetime.now() - t1
+    logging.info('calc finished in ' + str(datetime.datetime.now() - t1))
     return df
 
 def getHHighForCode(x):
@@ -145,10 +148,10 @@ def getHHighForCode(x):
 
 def updateHistoryHigh(df):
     names = ('code', 'name', 'vol', 'buyprice', 'price', 'cap', 'buydate', 'historyhigh', 'cash')
-    holding = pd.read_csv(HOLDINGCSV, header=0, names=names, dtype={'code': np.str, 'name': np.str}, parse_dates=True, encoding='gbk')
+    holding = pd.read_csv(HOLDINGCSV, header=0, names=names, dtype={'code': np.str, 'name': np.str}, parse_dates=True, encoding='utf-8')
 
     if holding.empty:
-        print 'empty holding.'
+        logging.error('empty holding.')
         return
     # get hitory high
     df = df.sort_index()
@@ -156,7 +159,7 @@ def updateHistoryHigh(df):
         instrument = holding.ix[i]
         hdata = df.loc(axis=0)[instrument.buydate:, instrument.code]
         if hdata.empty:
-            print 'fail to find hhigh ' + (instrument.code) + ' ' + str(instrument.buydate)
+            logging.error('fail to find hhigh ' + (instrument.code) + ' ' + str(instrument.buydate))
             continue
         lastdayhfqratio = hdata.iloc[-1].hfqratio
         hdata['qfqratio'] = hdata.hfqratio / lastdayhfqratio
@@ -165,17 +168,17 @@ def updateHistoryHigh(df):
 
     holding = holding.groupby(holding.code).apply(getHHighForCode)
 
-    holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
+    holding.to_csv(HOLDINGCSV, index=False, encoding='utf-8')
 
 def generateYesterdayFile():
     t1 = datetime.datetime.now()
     #sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-1-1'"
-    print 'reading...'
+    logging.info('reading...')
     #aa = pd.read_sql(sql, engine, index_col='date', parse_dates= True, chunksize= 100000)
     #df = pd.concat(aa)
     df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['close', 'high', 'low', 'open', 'totalcap', 'name', 'hfqratio'], where='date > \'2015-1-1\'')
 
-    print datetime.datetime.now() - t1
+    logging.info('reading finished in ' + str(datetime.datetime.now() - t1))
 
     df = prepareMediateFile(df)
 
@@ -183,7 +186,7 @@ def generateYesterdayFile():
 
     #lastday = lastday.head(300)
 
-    lastday.to_csv(YESTERDAYCSV, encoding='gbk')
+    lastday.to_csv(YESTERDAYCSV, encoding='utf-8')
 
     updateHistoryHigh(df)
 
@@ -194,28 +197,30 @@ def trade():
 
     get = False
     todayTotal = 0;
-    print 'retrieving today all...'
+    logging.info('retrieving today all...')
     today = pd.DataFrame()
     retry = 0
     while not get and retry < 15:
         try:
             retry += 1
-            today = get_today_all()
-            if today.index.is_unique and len(today[today.open>0]) > 500:
+            #today = get_today_all()
+            today = get_realtime_all_st()
+            today = today.set_index('code')
+            if today.index.is_unique and len(today[today.open > 0]) > 500:
                 get = True
         except Exception:
-            print 'retrying...'
-    today = today.set_index('code')
-    yesterday = pd.read_csv(YESTERDAYCSV, dtype={'code': np.str}, parse_dates=True, encoding='gbk')
+            logging.error('retrying...')
+    #today = today.set_index('code')
+    yesterday = pd.read_csv(YESTERDAYCSV, dtype={'code': np.str}, parse_dates=True, encoding='utf-8')
     yesterday = yesterday.set_index('code')
-    holding = pd.read_csv(HOLDINGCSV,dtype={'code': np.str}, parse_dates=True, encoding='gbk')
+    holding = pd.read_csv(HOLDINGCSV,dtype={'code': np.str}, parse_dates=True, encoding='utf-8')
 
-    print 'selling...'
+    logging.info('selling...')
     #sell
     cash = 200000
     if not holding.empty:
         cash = holding.cash[0]
-    print cash
+    logging.info('cash = ' + str(cash))
     for i in range(0, len(holding)):
         instrument = holding.ix[i]
         oneRicToday = today.loc[instrument.code]
@@ -228,7 +233,7 @@ def trade():
 
         pos = yesterday.index.get_loc(instrument.code)
         row = yesterday.iloc[pos]
-        ratio = oneRicToday.settlement / row.close
+        ratio = oneRicToday.pre_close / row.close
         amount = oneRicToday.open * instrument.vol
         # 1. Check 300
         if not pos < 300:
@@ -261,13 +266,13 @@ def trade():
     holding = holding[holding.vol > 0]
     holding.cap = holding.vol * holding.price
 
-    print 'buying...'
+    logging.info('buying...')
     #buy
     h300 = yesterday.head(300)
     valid = pd.DataFrame()
     valid['pclose'] = h300.close
     valid['open'] = today.open
-    valid['settle'] = today.settlement
+    valid['settle'] = today.pre_close
     valid['ratio'] = valid.settle / valid.pclose
     valid['name'] = today.name
     valid['totalcap'] = h300.totalcap
@@ -291,7 +296,7 @@ def trade():
     valid['buyflag'] = valid.buyflag & (valid.open > valid.lowlimit)
     valid['buyflag'] = valid.buyflag & (valid.open > valid.plowlimit)
 
-    print cash
+    logging.info('cash = ' +  str(cash))
 
     myindex = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
     myindex = myindex.iloc[-1]
@@ -332,9 +337,9 @@ def trade():
                 holding.loc[len(holding)] = (row.code, row.name, volume, row.open, row.open, amount, str(datetime.date.today()), row.open, 0)
                 availablCnt = availablCnt - 1
 
-    valid.to_csv(TODAYVALIDCSV, encoding='gbk')
+    valid.to_csv(TODAYVALIDCSV, encoding='utf-8')
     holding['cash'] = cash
-    holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
+    holding.to_csv(HOLDINGCSV, index=False, encoding='utf-8')
 
     file = open('d:\\tradelog\\trade_log_' + str(datetime.date.today()) + '.txt', mode='w')
     file.write(tradinglog)
@@ -350,7 +355,7 @@ def getArgs():
     return vars(args)
 
 def sendmail(log):
-    print 'sending mail'
+    logging.info('sending mail')
     config = ConfigParser.ConfigParser()
     config.read('d:\\tradelog\\mail.ini')
 
@@ -369,10 +374,19 @@ def sendmail(log):
         sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
         sm.quit()
     except Exception, e:
-        print str(e)
+        logging.error(str(e))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='D:\\project\OctopusVulgaris\\Mars\\excute\\BLSH.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
+
     args = getArgs()
     type = args['t']
 
@@ -380,4 +394,4 @@ if __name__ == "__main__":
         generateYesterdayFile()
     elif (type == 'morning'):
         log = trade()
-        sendmail(log)
+        #sendmail(log)

@@ -24,11 +24,7 @@ import threading
 import numpy as np
 import pickle
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S',
-                    filename='log.txt'
-                    )
+
 conn = psycopg2.connect(database="postgres", user="postgres", password="postgres", host="localhost", port="5432")
 cur = conn.cursor()
 
@@ -893,6 +889,12 @@ def getArgs():
     return vars(args)
 
 if __name__=="__main__":
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='log.txt'
+                        )
+
     args = getArgs()
     type = args['t']
 

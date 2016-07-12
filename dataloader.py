@@ -10,12 +10,6 @@ import time
 import threading
 import argparse
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S',
-                    filename='loader.txt'
-                    )
-
 def get_code_list(start_code, end_code, engine):
     sql = ''
     if(start_code == '' and end_code == ''):
@@ -181,6 +175,12 @@ def getArgs():
 if __name__=="__main__":
     args = getArgs()
     type = args['t']
+
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='loader.txt'
+                        )
 
     if (type == 'full'):
         load_dailydata_from_db_to_file()
