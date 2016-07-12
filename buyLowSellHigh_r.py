@@ -13,13 +13,15 @@ from urllib2 import urlopen, Request
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
-import utility
+from utility import round_series, get_realtime_all_st
 import talib
 import ConfigParser
+import logging
+import sys
 
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=False)
-st_pattern = r'^ST|^S|^\*ST|退市'
-ashare_pattern = r'^0|^3|^6'
+st_pattern = r'^S|^\*|退市'
+
 
 HOLDINGCSV = 'd:\\tradelog\\holding.csv'
 YESTERDAYCSV = 'd:\\tradelog\\yesterday.csv'
@@ -46,11 +48,6 @@ def ComputeCustomIndex(df):
 
     myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
 
-def round_series(s):
-    s = s * 1000
-    s = s.apply(round, ndigits=-1)
-    return s / 1000
-
 def sort(x):
 
     x = x.sort_values('totalcap', ascending=True)
@@ -60,73 +57,80 @@ def sort(x):
 
 def calc(x):
 
-    x = x.sort_index()
-    z = x.index
-    x.reset_index(inplace=True)
+    #x = x.sort_index()
+    #z = x.index
+    #x.reset_index(inplace=True)
     valid = x[x.open > 0.01]
-    y = valid.index
+    #y = valid.index
     #reset index to jump halt days
-    valid = valid.reset_index()
+    #valid = valid.reset_index()
 
-    result = pd.DataFrame()
+    #result = pd.DataFrame()
+    validLen = len(valid)
     # yesterday
-    result['hfqratio'] = valid.hfqratio
-    result['phfqratio'] = valid.index - 1
-    result['phfqratio'] = result.phfqratio.map(valid.hfqratio)
+    #result['hfqratio'] = valid.hfqratio
+    valid['phfqratio'] = 1
+    valid['phfqratio'].iloc[1:] = valid.hfqratio.values[:validLen-1]
+    #result['phfqratio'] = valid.index - 1
+    #result['phfqratio'] = result.phfqratio.map(valid.hfqratio)
 
-    factor = result.phfqratio / result.hfqratio
-    result['pclose'] = valid.index - 1
-    result['pclose'] = result.pclose.map(valid.close)
-    result['pclose'] = result.pclose * factor
-    result.pclose = round_series(result.pclose)
-    result['open'] = valid.open
-    result['high'] = valid.high
-    result['low'] = valid.low
-    result['close'] = valid.close
-    result['lowlimit'] = result.pclose * 0.9
-    result['highlimit'] = result.pclose * 1.1
-    result['tlowlimit'] = result.close * 0.9
-    result['thighlimit'] = result.close * 1.1
+    factor = valid.phfqratio / valid.hfqratio
+    valid['pclose'] = 0
+    valid['pclose'].iloc[1:] = valid.close.values[:validLen-1]
+    #result['pclose'] = valid.index - 1
+    #result['pclose'] = result.pclose.map(valid.close)
+    valid['pclose'] = valid.pclose * factor
+    valid.pclose = round_series(valid.pclose)
+    #result['open'] = valid.open
+    #result['high'] = valid.high
+    #result['low'] = valid.low
+    #result['close'] = valid.close
+    valid['lowlimit'] = valid.pclose * 0.9
+    valid['highlimit'] = valid.pclose * 1.1
+    valid['tlowlimit'] = valid.close * 0.9
+    valid['thighlimit'] = valid.close * 1.1
 
     # round all price to two decimal places
-    result.lowlimit = round_series(result.lowlimit)
-    result.highlimit = round_series(result.highlimit)
-    result.tlowlimit = round_series(result.tlowlimit)
-    result.thighlimit = round_series(result.thighlimit)
+    valid.lowlimit = round_series(valid.lowlimit)
+    valid.highlimit = round_series(valid.highlimit)
+    valid.tlowlimit = round_series(valid.tlowlimit)
+    valid.thighlimit = round_series(valid.thighlimit)
 
     #recover to valid index first
-    result = result.set_index(y)
+    #result = result.set_index(y)
     #recover to x.index
-    result = result.reindex(x.index, method='pad')
+    valid = valid.reindex(x.index, method='pad')
 
     # on day data, value exist no matter haltx
 
-    result['name'] = x.name
-    result['totalcap'] = x.totalcap
-    result['hfqratio'] = x.hfqratio
+    #valid['name'] = x.name
+    valid['totalcap'] = x.totalcap
+    valid['hfqratio'] = x.hfqratio
     #recover to date index
-    result = result.set_index(z)
-    return result
+    #result = result.set_index(z)
+    return valid
 
 def prepareMediateFile(df):
     t1 = datetime.datetime.now()
-    print len(df)
-    df = df[df.code.str.contains(ashare_pattern)]
 
-    df = df.sort_index()
-    print datetime.datetime.now() - t1
+    logging.info('df len %d' % len(df))
 
-    groupbycode = df.groupby('code')
+    #df = df.sort_index()
+    #print datetime.datetime.now() - t1
 
-    print 'calculating...'
+    groupbycode = df.groupby(level=0)
+
+    logging.info('calculating...')
     result = groupbycode.apply(calc)
 
     result = result[result.name.str.startswith('N') != True]
-    result = result.reset_index()
+    result = result.swaplevel(i='code', j='date')
+    #result = result.reset_index()
 
-    print result.columns
-    result = result.set_index(['date', 'code'])
-    result = result.sort_index()
+    #print result.columns
+    #result = result.set_index(['date', 'code'])
+    #result = result.sort_index()
+
 
     groupbydate = result.groupby(level=0)
 
@@ -135,7 +139,7 @@ def prepareMediateFile(df):
 
     #df = df.loc[datetime.datetime(2008, 1, 1, ):, :]
 
-    print datetime.datetime.now() - t1
+    logging.info('calc finished in ' + str(datetime.datetime.now() - t1))
     return df
 
 def getHHighForCode(x):
@@ -144,10 +148,10 @@ def getHHighForCode(x):
 
 def updateHistoryHigh(df):
     names = ('code', 'name', 'vol', 'buyprice', 'price', 'cap', 'buydate', 'historyhigh', 'cash')
-    holding = pd.read_csv(HOLDINGCSV, header=0, names=names, dtype={'code': np.str, 'name': np.str}, parse_dates=True, encoding='gbk')
+    holding = pd.read_csv(HOLDINGCSV, header=0, names=names, dtype={'code': np.str, 'name': np.str}, parse_dates=True, encoding='utf-8')
 
     if holding.empty:
-        print 'empty holding.'
+        logging.error('empty holding.')
         return
     # get hitory high
     df = df.sort_index()
@@ -155,7 +159,7 @@ def updateHistoryHigh(df):
         instrument = holding.ix[i]
         hdata = df.loc(axis=0)[instrument.buydate:, instrument.code]
         if hdata.empty:
-            print 'fail to find hhigh ' + (instrument.code) + ' ' + str(instrument.buydate)
+            logging.error('fail to find hhigh ' + (instrument.code) + ' ' + str(instrument.buydate))
             continue
         lastdayhfqratio = hdata.iloc[-1].hfqratio
         hdata['qfqratio'] = hdata.hfqratio / lastdayhfqratio
@@ -164,16 +168,17 @@ def updateHistoryHigh(df):
 
     holding = holding.groupby(holding.code).apply(getHHighForCode)
 
-    holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
+    holding.to_csv(HOLDINGCSV, index=False, encoding='utf-8')
 
 def generateYesterdayFile():
     t1 = datetime.datetime.now()
-    sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-1-1'"
-    print 'reading...'
-    aa = pd.read_sql(sql, engine, index_col='date', parse_dates= True, chunksize= 100000)
-    df = pd.concat(aa)
+    #sql = "SELECT code, date, name, close, high, low, open, vol, amo, totalcap, hfqratio from dailydata where date > '2015-1-1'"
+    logging.info('reading...')
+    #aa = pd.read_sql(sql, engine, index_col='date', parse_dates= True, chunksize= 100000)
+    #df = pd.concat(aa)
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['close', 'high', 'low', 'open', 'totalcap', 'name', 'hfqratio'], where='date > \'2015-1-1\'')
 
-    print datetime.datetime.now() - t1
+    logging.info('reading finished in ' + str(datetime.datetime.now() - t1))
 
     df = prepareMediateFile(df)
 
@@ -181,7 +186,7 @@ def generateYesterdayFile():
 
     #lastday = lastday.head(300)
 
-    lastday.to_csv(YESTERDAYCSV, encoding='gbk')
+    lastday.to_csv(YESTERDAYCSV, encoding='utf-8')
 
     updateHistoryHigh(df)
 
@@ -192,28 +197,30 @@ def trade():
 
     get = False
     todayTotal = 0;
-    print 'retrieving today all...'
+    logging.info('retrieving today all...')
     today = pd.DataFrame()
     retry = 0
     while not get and retry < 15:
         try:
             retry += 1
-            today = utility.get_today_all()
-            if today.index.is_unique and len(today[today.open>0]) > 500:
+            #today = get_today_all()
+            today = get_realtime_all_st()
+            today = today.set_index('code')
+            if today.index.is_unique and len(today[today.open > 0]) > 500:
                 get = True
         except Exception:
-            print 'retrying...'
-    today = today.set_index('code')
-    yesterday = pd.read_csv(YESTERDAYCSV, dtype={'code': np.str}, parse_dates=True, encoding='gbk')
+            logging.error('retrying...')
+    #today = today.set_index('code')
+    yesterday = pd.read_csv(YESTERDAYCSV, dtype={'code': np.str}, parse_dates=True, encoding='utf-8')
     yesterday = yesterday.set_index('code')
-    holding = pd.read_csv(HOLDINGCSV,dtype={'code': np.str}, parse_dates=True, encoding='gbk')
+    holding = pd.read_csv(HOLDINGCSV,dtype={'code': np.str}, parse_dates=True, encoding='utf-8')
 
-    print 'selling...'
+    logging.info('selling...')
     #sell
     cash = 200000
     if not holding.empty:
         cash = holding.cash[0]
-    print cash
+    logging.info('cash = ' + str(cash))
     for i in range(0, len(holding)):
         instrument = holding.ix[i]
         oneRicToday = today.loc[instrument.code]
@@ -226,7 +233,7 @@ def trade():
 
         pos = yesterday.index.get_loc(instrument.code)
         row = yesterday.iloc[pos]
-        ratio = oneRicToday.settlement / row.close
+        ratio = oneRicToday.pre_close / row.close
         amount = oneRicToday.open * instrument.vol
         # 1. Check 300
         if not pos < 300:
@@ -259,13 +266,13 @@ def trade():
     holding = holding[holding.vol > 0]
     holding.cap = holding.vol * holding.price
 
-    print 'buying...'
+    logging.info('buying...')
     #buy
     h300 = yesterday.head(300)
     valid = pd.DataFrame()
     valid['pclose'] = h300.close
     valid['open'] = today.open
-    valid['settle'] = today.settlement
+    valid['settle'] = today.pre_close
     valid['ratio'] = valid.settle / valid.pclose
     valid['name'] = today.name
     valid['totalcap'] = h300.totalcap
@@ -289,7 +296,7 @@ def trade():
     valid['buyflag'] = valid.buyflag & (valid.open > valid.lowlimit)
     valid['buyflag'] = valid.buyflag & (valid.open > valid.plowlimit)
 
-    print cash
+    logging.info('cash = ' +  str(cash))
 
     myindex = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
     myindex = myindex.iloc[-1]
@@ -330,9 +337,9 @@ def trade():
                 holding.loc[len(holding)] = (row.code, row.name, volume, row.open, row.open, amount, str(datetime.date.today()), row.open, 0)
                 availablCnt = availablCnt - 1
 
-    valid.to_csv(TODAYVALIDCSV, encoding='gbk')
+    valid.to_csv(TODAYVALIDCSV, encoding='utf-8')
     holding['cash'] = cash
-    holding.to_csv(HOLDINGCSV, index=False, encoding='gbk')
+    holding.to_csv(HOLDINGCSV, index=False, encoding='utf-8')
 
     file = open('d:\\tradelog\\trade_log_' + str(datetime.date.today()) + '.txt', mode='w')
     file.write(tradinglog)
@@ -348,7 +355,7 @@ def getArgs():
     return vars(args)
 
 def sendmail(log):
-    print 'sending mail'
+    logging.info('sending mail')
     config = ConfigParser.ConfigParser()
     config.read('d:\\tradelog\\mail.ini')
 
@@ -367,10 +374,19 @@ def sendmail(log):
         sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
         sm.quit()
     except Exception, e:
-        print str(e)
+        logging.error(str(e))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='D:\\project\OctopusVulgaris\\Mars\\excute\\BLSH.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
+
     args = getArgs()
     type = args['t']
 
@@ -378,4 +394,4 @@ if __name__ == "__main__":
         generateYesterdayFile()
     elif (type == 'morning'):
         log = trade()
-        sendmail(log)
+        #sendmail(log)
