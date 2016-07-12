@@ -81,7 +81,7 @@ def request_history_tick(code, datelist):
     print 'start requesting tick, code: ' + code
 
     df = pd.DataFrame()
-    if len(datelist < 1):
+    if len(datelist) < 1:
         return df
 
     if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
@@ -90,7 +90,7 @@ def request_history_tick(code, datelist):
             lastday = df.reset_index(level=1).date[-1].date()
             lastday += datetime.timedelta(days=1)
             datelist = datelist[lastday:]
-    if len(datelist < 1):
+    if len(datelist) < 1:
         return df
 
     for cur_day in datelist:
