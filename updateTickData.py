@@ -9,6 +9,7 @@ import Queue
 import time
 import logging
 import pandas as pd
+import sys
 
 backbone = Queue.Queue()
 engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
@@ -18,7 +19,7 @@ def download_tick(codelist, q):
     a = codelist.index.drop_duplicates()
 
     for code in a.values:
-        df = mydownloader.request_history_tick(code, codelist.loc[code].date)
+        df = mydownloader.request_history_tick(code, codelist.loc[code:code].date)
         if not df.empty:
             q.put(df)
 
@@ -32,7 +33,6 @@ def serialize(q):
             code = df.index.get_level_values(0)[1]
             df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc')
             logging.info('finished save tick, code: ' + code)
-            print 'finished save tick, code: ' + code
         else:
             time.sleep(60)
             if g_flag >= 6:
@@ -43,17 +43,17 @@ all = all[all.open > 0]
 all = all.reset_index(level=1)
 
 threads = []
-t1 = threading.Thread(target=download_tick, args=(all.loc['000001':'000990'], backbone))
+t1 = threading.Thread(target=download_tick, args=(all.loc['000159':'000990'], backbone))
 threads.append(t1)
-t2 = threading.Thread(target=download_tick, args=(all.loc['000991':'002593'], backbone))
+t2 = threading.Thread(target=download_tick, args=(all.loc['002065':'002593'], backbone))
 threads.append(t2)
-t3 = threading.Thread(target=download_tick, args=(all.loc['002594':'300290'], backbone))
+t3 = threading.Thread(target=download_tick, args=(all.loc['300029':'300290'], backbone))
 threads.append(t3)
-t4 = threading.Thread(target=download_tick, args=(all.loc['300293':'600198'], backbone))
+t4 = threading.Thread(target=download_tick, args=(all.loc['300520':'600198'], backbone))
 threads.append(t4)
-t5 = threading.Thread(target=download_tick, args=(all.loc['600199':'600663'], backbone))
+t5 = threading.Thread(target=download_tick, args=(all.loc['600279':'600663'], backbone))
 threads.append(t5)
-t6 = threading.Thread(target=download_tick, args=(all.loc['600664':'603999'], backbone))
+t6 = threading.Thread(target=download_tick, args=(all.loc['600743':'603999'], backbone))
 threads.append(t6)
 
 
@@ -63,6 +63,14 @@ threads.append(t12)
 
 if __name__=="__main__":
 
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='updateTickData.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
     #downloader.update_stock_basics()
     #downloader.create_dayk_talbe()
 
