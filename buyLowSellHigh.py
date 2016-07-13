@@ -411,8 +411,9 @@ def Processing():
     t1 = datetime.datetime.now()
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day')
-    print datetime.datetime.now()- t1
     df = df.loc[datetime.datetime(2008, 1, 7, ):, :]
+    print datetime.datetime.now()- t1
+
     groupbydate = df.groupby(level=0)
     groupbydate.apply(handle_day)
 
@@ -434,6 +435,6 @@ def Processing():
 
 
 #sqltoHDF()
-prepareMediateFile()
-#Processing()
+#prepareMediateFile()
+Processing()
 #ComputeCustomIndex()

@@ -394,4 +394,4 @@ if __name__ == "__main__":
         generateYesterdayFile()
     elif (type == 'morning'):
         log = trade()
-        #sendmail(log)
+        sendmail(log)
