@@ -341,6 +341,7 @@ def close_check(row):
     row.tradeablecap *= 10000
     return row
 
+#not used, still lack some total cap
 def get_today_all_from_sina(retry=50, pause=10):
     df = utility.get_today_all()
 

@@ -5,6 +5,9 @@ import sqlalchemy as sa
 import datetime
 from collections import namedtuple
 import numpy as np
+import ctypes as ct
+import time
+import talib
 
 
 import logging
@@ -31,6 +34,10 @@ transaction_log = []
 #transaction_log = pd.DataFrame(columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio',
 # 'fee'))
 
+def GetTotalCapIndex(x):
+    x = x.sort_values('ptotalcap')
+    x = x.head(int(len(x) / 10))
+    return x.ptotalcap.sum() / 100000
 
 def holdingNum():
     cnt =0
@@ -56,7 +63,7 @@ def updateDayPrcRatio(code, hfqratio, open):
 def sell(stock, price, date, hfqratio, type, pamo):
     global cash
     #global holding_cnt
-    ratio = stock.hfqratio / hfqratio
+    ratio = hfqratio /stock.hfqratio
     stock.volume = stock.volume * ratio
     prevAmo = pamo * 0.005
     amount = price * stock.volume
@@ -222,8 +229,9 @@ def sort(x):
     x = x.sort_values('ptotalcap', ascending=True)
 
     # check st, final true is ready to buy
-    x['buyflag'] = x.name.str.contains(st_pattern)
-    x['buyflag'] = x.buyflag != True
+    x['stflag'] = 0
+    x.loc[x.name.str.contains(st_pattern), 'stflag'] = 1
+    x['buyflag'] = x.stflag < 1
     # open on this day
     x['buyflag'] = x.buyflag & (x.open > 0.01)
     # open low , but not over prev low limit and don't reach today low limit
@@ -306,12 +314,9 @@ def calc(x):
     result['hfqratio'] = x.hfqratio
     #recover to date index
     result = result.set_index(z)
+    del result['phfqratio']
+    del result['pphfq']
     return result
-
-def GetTotalCapIndex(x):
-    x = x.sort_values('totalcap')
-    x = x.head(int(len(x) / 10))
-    return x.totalcap.sum() / 100000
 
 
 def csvtoHDF():
@@ -359,7 +364,7 @@ def sqltoHDF():
 def prepareMediateFile():
     t1 = datetime.datetime.now()
     print 'reading...'
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk')
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk', where='date > \'2006-5-1\'')
     #df = df[df.code.str.contains(ashare_pattern)]
 
 
@@ -371,22 +376,24 @@ def prepareMediateFile():
     groupbycode = df.groupby(level=0)
 
     print 'calculating...'
-    result = groupbycode.apply(calc)
+    df = groupbycode.apply(calc)
 
-    result = result[result.name.str.startswith('N') != True]
-    result = result.reset_index()
+    df = df[df.name.str.startswith('N') != True]
+    df = df.reset_index()
 
-    print result.columns
-    result = result.set_index(['date', 'code'])
-    result = result.sort_index()
+    print df.columns
+    df = df.set_index(['date', 'code'], drop=False)
+    df.date = df.date.apply(lambda x: np.int64(time.mktime(x.timetuple())))
+    df.code = df.code.apply(lambda x: np.int64(x))
+    df = df.rename(columns={'date': 'idate', 'code': 'icode'})
+    df = df.sort_index()
 
-    groupbydate = result.groupby(level=0)
+    groupbydate = df.groupby(level=0)
 
     df = groupbydate.apply(sort)
     df = df.reset_index(level=0, drop=True)
 
-    df = df.loc[datetime.datetime(2008, 1, 1, ):, :]
-
+    ComputeCustomIndex(df)
     print datetime.datetime.now() - t1
     print 'saving...'
     df.to_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf','day',mode='w', format='t', complib='blosc')
@@ -394,47 +401,101 @@ def prepareMediateFile():
     print len(df)
     print datetime.datetime.now() - t1
 
-def ComputeCustomIndex():
-    t1 = datetime.datetime.now()
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk')
-    df = df[df.code.str.contains(ashare_pattern)]
+def ComputeCustomIndex(df):
+    #t1 = datetime.datetime.now()
+    #df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
+    #df = df[df.code.str.contains(ashare_pattern)]
 
-    print datetime.datetime.now()- t1
+    #print datetime.datetime.now()- t1
     groupbydate = df.groupby(level=0)
-    df = groupbydate.apply(GetTotalCapIndex)
+    myindex = pd.DataFrame()
+    myindex['trdprc'] = groupbydate.apply(GetTotalCapIndex)
+    myindex['ma9'] = talib.MA(myindex.trdprc.values, timeperiod=9)
+    myindex['ma12'] = talib.MA(myindex.trdprc.values, timeperiod=12)
+    myindex['ma60'] = talib.MA(myindex.trdprc.values, timeperiod=60)
+    myindex['ma256'] = talib.MA(myindex.trdprc.values, timeperiod=256)
 
-    df.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='t', complib='blosc')
+    myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
 
-    print datetime.datetime.now() - t1
+    #print datetime.datetime.now() - t1
 
 def Processing():
-    t1 = datetime.datetime.now()
+    print time.clock()
     print 'reading...'
-    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day')
-    df = df.loc[datetime.datetime(2008, 1, 7, ):, :]
-    print datetime.datetime.now()- t1
+    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
+    index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
+    index = index.fillna(0)
+    index = index.loc['2008-1-1':]
 
-    groupbydate = df.groupby(level=0)
-    groupbydate.apply(handle_day)
+    c_double_p = ct.POINTER(ct.c_double)
+    #set log level
+    setloglevel = ct.cdll.LoadLibrary('d:\\BLSH.dll').setloglevel
+    setloglevel.argtypes = [ct.c_int64]
+    setloglevel(1)
+    # set index
+    setindex = ct.cdll.LoadLibrary('d:\\BLSH.dll').setindex
+    setindex.restype = ct.c_int64
+    setindex.argtypes = [ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_int]
 
-    print 'cash: ' + str(cash)
-    t_log = pd.DataFrame(transaction_log)
-    t_log.columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio', 'fee')
-    t_log.to_csv('d:\\transaction_log.csv')
-    h_log = pd.DataFrame(holdings_log)
-    h_log.columns = ('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash')
-    h_log.vol = h_log.vol * h_log.ratio_d
-    h_log.vol = h_log.vol / h_log.ratio_buy
-    h_log.amount = h_log.price * h_log.vol
-    aa = h_log.groupby('date')['amount'].sum()
-    h_log = h_log.set_index('date')
-    aa.reindex(h_log.index, method='bfill')
-    h_log['total'] = h_log.cash + aa
-    h_log.to_csv('d:\\holdings_log.csv')
-    print datetime.datetime.now() - t1
+    cdate = index.index.to_series().apply(lambda x: np.int64(time.mktime(x.timetuple()))).get_values().ctypes.data_as(ct.c_void_p)
+    cprc = index.trdprc.get_values().ctypes.data_as(c_double_p)
+    cma1 = index.ma9.get_values().ctypes.data_as(c_double_p)
+    cma2 = index.ma12.get_values().ctypes.data_as(c_double_p)
+    cma3 = index.ma60.get_values().ctypes.data_as(c_double_p)
+    cma4 = index.ma256.get_values().ctypes.data_as(c_double_p)
+
+    setindex(cdate, cprc, cma1, cma2, cma3, cma4, len(index))
+
+    # process
+    process = ct.cdll.LoadLibrary('d:\\BLSH.dll').process
+    setindex.restype = ct.c_int64
+    process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
+
+    #ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
+    #td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
+    #tui = ct.cdll.LoadLibrary('d:\\BLSH.dll').testuint
+    #ti.argtypes = [ct.c_void_p, ct.c_int]
+    #td.argtypes = [c_double_p, ct.c_int]
+    #tui.argtypes = [ct.c_void_p, ct.c_int]
+
+    print time.clock()
+
+    cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
+    ccode = df.icode.get_values().ctypes.data_as(ct.c_void_p)
+    cpclose = df.pclose.get_values().ctypes.data_as(c_double_p)
+    cphigh = df.phigh.get_values().ctypes.data_as(c_double_p)
+    cplow = df.plow.get_values().ctypes.data_as(c_double_p)
+    cplowlimit = df.plowlimit.get_values().ctypes.data_as(c_double_p)
+    copen = df.open.get_values().ctypes.data_as(c_double_p)
+    chighlimit = df.highlimit.get_values().ctypes.data_as(c_double_p)
+    clowlimit = df.lowlimit.get_values().ctypes.data_as(c_double_p)
+    chfqratio = df.hfqratio.get_values().ctypes.data_as(c_double_p)
+    cstflag = df.stflag.get_values().ctypes.data_as(ct.c_void_p)
+
+    for i in range(0, 1):
+        ret = process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, len(df))
+
+    #groupbydate = df.groupby(level=0)
+    #groupbydate.apply(handle_day)
+
+    #print 'cash: ' + str(cash)
+    #t_log = pd.DataFrame(transaction_log)
+    #t_log.columns=('date', 'type', 'code', 'price', 'volume', 'amount', 'profit', 'hfqratio', 'fee')
+    #t_log.to_csv('d:\\transaction_log.csv')
+    #h_log = pd.DataFrame(holdings_log)
+    #h_log.columns = ('date', 'code', 'ratio_buy', 'ratio_d', 'price', 'vol', 'amount', 'cash')
+    #h_log.vol = h_log.vol * h_log.ratio_d
+    #h_log.vol = h_log.vol / h_log.ratio_buy
+    #h_log.amount = h_log.price * h_log.vol
+    #aa = h_log.groupby('date')['amount'].sum()
+    #h_log = h_log.set_index('date')
+    #aa.reindex(h_log.index, method='bfill')
+    #h_log['total'] = h_log.cash + aa
+    #h_log.to_csv('d:\\holdings_log.csv')
+    print time.clock()
 
 
 #sqltoHDF()
 #prepareMediateFile()
 Processing()
-#ComputeCustomIndex()
+

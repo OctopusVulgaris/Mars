@@ -30,7 +30,9 @@ def serialize(q):
     while True:
         if not q.empty():
             df = q.get()
-            code = df.index.get_level_values(0)[1]
+            code = df.index.get_level_values(0)[0]
+            if len(df) < 100:
+                logging.warning('len of df less than 100, code: ' + code)
             df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc')
             logging.info('finished save tick, code: ' + code)
         else:
@@ -43,17 +45,17 @@ all = all[all.open > 0]
 all = all.reset_index(level=1)
 
 threads = []
-t1 = threading.Thread(target=download_tick, args=(all.loc['000159':'000990'], backbone))
+t1 = threading.Thread(target=download_tick, args=(all.loc['000683':'000799'], backbone))
 threads.append(t1)
-t2 = threading.Thread(target=download_tick, args=(all.loc['002065':'002593'], backbone))
+t2 = threading.Thread(target=download_tick, args=(all.loc['002265':'002593'], backbone))
 threads.append(t2)
-t3 = threading.Thread(target=download_tick, args=(all.loc['300029':'300290'], backbone))
+t3 = threading.Thread(target=download_tick, args=(all.loc['000800':'000990'], backbone))
 threads.append(t3)
-t4 = threading.Thread(target=download_tick, args=(all.loc['300520':'600198'], backbone))
+t4 = threading.Thread(target=download_tick, args=(all.loc['600188':'600198'], backbone))
 threads.append(t4)
-t5 = threading.Thread(target=download_tick, args=(all.loc['600279':'600663'], backbone))
+t5 = threading.Thread(target=download_tick, args=(all.loc['600492':'600663'], backbone))
 threads.append(t5)
-t6 = threading.Thread(target=download_tick, args=(all.loc['600743':'603999'], backbone))
+t6 = threading.Thread(target=download_tick, args=(all.loc['600984':'603999'], backbone))
 threads.append(t6)
 
 

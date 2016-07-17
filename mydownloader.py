@@ -78,18 +78,16 @@ def request_history_tick(code, datelist):
 
 
     logging.info('start requesting tick, code: ' + code)
-    print 'start requesting tick, code: ' + code
 
     df = pd.DataFrame()
     if len(datelist) < 1:
         return df
 
     if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
-        df = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
-        if not df.empty:
-            lastday = df.reset_index(level=1).date[-1].date()
-            lastday += datetime.timedelta(days=1)
-            datelist = datelist[lastday:]
+        tmp = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
+        if not tmp.empty:
+            lastday = tmp.reset_index(level=1).date[-1].date()
+            datelist = datelist[datelist > lastday]
     if len(datelist) < 1:
         return df
 
@@ -121,7 +119,6 @@ def request_history_tick(code, datelist):
             logging.error(str(code) + ' request tick retry ' + str(retry) + ' on ' + str(cur_day))
 
     logging.info('finished request tick, code: ' + code)
-    print ('finished request tick, code: ' + code)
     if not df.empty:
         df = df.set_index(['code', 'date'])
         df.sort_index()
