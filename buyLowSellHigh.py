@@ -382,18 +382,17 @@ def prepareMediateFile():
     df = df[df.name.str.startswith('N') != True]
     df = df.reset_index()
 
-    print df.columns
     df = df.set_index(['date', 'code'], drop=False)
     df.date = df.date.apply(lambda x: np.int64(time.mktime(x.timetuple())))
     df.code = df.code.apply(lambda x: np.int64(x))
     df = df.rename(columns={'date': 'idate', 'code': 'icode'})
     df = df.sort_index()
-
+    print df.columns
     groupbydate = df.groupby(level=0)
-
     df = groupbydate.apply(sort)
+    print datetime.datetime.now() - t1
     df = df.reset_index(level=0, drop=True)
-
+    print datetime.datetime.now() - t1
     ComputeCustomIndex(df)
     print datetime.datetime.now() - t1
     print 'saving...'
@@ -432,7 +431,7 @@ def Processing():
     #set log level
     setloglevel = ct.cdll.LoadLibrary('d:\\BLSH.dll').setloglevel
     setloglevel.argtypes = [ct.c_int64]
-    setloglevel(1)
+    setloglevel(3)
     # set index
     setindex = ct.cdll.LoadLibrary('d:\\BLSH.dll').setindex
     setindex.restype = ct.c_int64
@@ -450,7 +449,7 @@ def Processing():
     # process
     process = ct.cdll.LoadLibrary('d:\\BLSH.dll').process
     setindex.restype = ct.c_int64
-    process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
+    process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
 
     #ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
     #td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
@@ -472,9 +471,11 @@ def Processing():
     clowlimit = df.lowlimit.get_values().ctypes.data_as(c_double_p)
     chfqratio = df.hfqratio.get_values().ctypes.data_as(c_double_p)
     cstflag = df.stflag.get_values().ctypes.data_as(ct.c_void_p)
+    chigh = df.high.get_values().ctypes.data_as(c_double_p)
+    clow = df.low.get_values().ctypes.data_as(c_double_p)
 
     for i in range(0, 1):
-        ret = process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, len(df))
+        ret = process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chigh, clow, chfqratio, cstflag, len(df))
 
     #groupbydate = df.groupby(level=0)
     #groupbydate.apply(handle_day)
