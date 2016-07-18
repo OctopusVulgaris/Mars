@@ -167,6 +167,10 @@ def prepareMediateFile():
 
     lastday = df.index.get_level_values(1)[-1]
     tomorrow = df.loc(axis=0)[:, lastday].reset_index()
+
+    # following values doesn't need adjust by hfqratio
+    tomorrow.ptotalcap = tomorrow.totalcap
+    tomorrow.phfqratio = tomorrow.hfqratio
     # following value need fill by real time value in the morning
     tomorrow.date = datetime.date(2050, 1, 1)
     tomorrow.open = 0
@@ -182,9 +186,6 @@ def prepareMediateFile():
     tomorrow.phigh = tomorrow.high
     tomorrow.lowlimit = tomorrow.pclose * 0.9
     tomorrow.highlimit = tomorrow.pclose * 1.1
-
-    # following values doesn't need adjust by hfqratio
-    tomorrow.ptotalcap = tomorrow.totalcap
 
     df = df.append(tomorrow)
 
