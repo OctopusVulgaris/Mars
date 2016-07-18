@@ -159,6 +159,10 @@ def handle_day(x):
         try:
             pos = x.index.get_loc((date, code))
             row = x.iloc[pos]
+            # suspend for trading, continue hold
+            if row.open < 0.01:
+                continue
+
             updateDayPrcRatio(code, row.hfqratio, row.open)
             # total cap out of rank 300, sell
             if not pos < 300:
@@ -171,9 +175,6 @@ def handle_day(x):
                 summits[code] = row.phigh * row.hfqratio
                 adjSummit = row.phigh
 
-            # suspend for trading, continue hold
-            if row.open < 0.01:
-                continue
             # open high, but not reach limit, sell
             if row.open > row.phigh and row.open < row.highlimit:
                 allSell(code, date, row, 'open high')
