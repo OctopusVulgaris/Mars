@@ -118,30 +118,6 @@ def csvtoHDF():
     print len(df)
     print datetime.datetime.now() - t1
 
-def sqltoHDF():
-    t1 = datetime.datetime.now()
-    print 'reading...'
-    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
-    aa = pd.read_sql_table('dailydata', engine, index_col='date', columns=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000)
-    df = pd.concat(aa)
-
-    print len(df)
-
-    df.sort_index(inplace=True)
-    print datetime.datetime.now() - t1
-    df['nameutf'] = 'utf8'
-    df['codeutf'] = 'utf8'
-    df.nameutf = df.name.str.encode('utf-8')
-    df.codeutf = df.code.str.encode('utf-8')
-    del df['name']
-    del df['code']
-    df.columns = ['close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio', 'name', 'code']
-
-    print 'saving...'
-    df.to_hdf('d:\\HDF5_Data\\dailydata.hdf','day',mode='w', format='t', complib='blosc')
-
-    print len(df)
-    print datetime.datetime.now() - t1
 
 def ComputeCustomIndex(df):
     #t1 = datetime.datetime.now()
