@@ -259,7 +259,7 @@ def Processing():
     # process
     process = ct.cdll.LoadLibrary('d:\\BLSH.dll').process
     setindex.restype = ct.c_int64
-    process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
+    process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
 
     #ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
     #td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
@@ -281,11 +281,9 @@ def Processing():
     clowlimit = df.lowlimit.get_values().ctypes.data_as(c_double_p)
     chfqratio = df.hfqratio.get_values().ctypes.data_as(c_double_p)
     cstflag = df.stflag.get_values().ctypes.data_as(ct.c_void_p)
-    chigh = df.high.get_values().ctypes.data_as(c_double_p)
-    clow = df.low.get_values().ctypes.data_as(c_double_p)
 
     for i in range(0, 1):
-        ret = process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chigh, clow, chfqratio, cstflag, len(df))
+        ret = process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, len(df))
 
 
     print time.clock()
