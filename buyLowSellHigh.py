@@ -304,7 +304,7 @@ def morningTrade():
     doProcessing(df, 1)
 
 
-#prepareMediateFile()
-regressionTest()
+prepareMediateFile()
+#regressionTest()
 #morningTrade()
 
