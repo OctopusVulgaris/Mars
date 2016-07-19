@@ -22,7 +22,7 @@ to_be_sell = []
 cash = 100000.0
 poolsize = 300
 
-st_pattern = r'^S|^*|退市'
+st_pattern = r'^S|^\*|退市'
 ashare_pattern = r'^0|^3|^6'
 
 
@@ -141,12 +141,12 @@ def ComputeCustomIndex(df):
 def prepareMediateFile():
     t1 = datetime.datetime.now()
     print 'reading...'
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk', columns=['close', 'high', 'low', 'open', 'totalcap', 'name', 'hfqratio'], where='date > \'2006-5-1\'')
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk', columns=['close', 'high', 'low', 'open', 'totalcap', 'tradeablecap', 'name', 'hfqratio'], where='date > \'2006-5-1\'')
     #df = df[df.code.str.contains(ashare_pattern)]
 
 
     print len(df)
-
+    df = df[df.tradeablecap > 0]
     df.sort_index(inplace=True)
     print datetime.datetime.now() - t1
 
@@ -203,7 +203,7 @@ def prepareMediateFile():
     print datetime.datetime.now() - t1
 
 
-def doProcessing(df):
+def doProcessing(df, loglevel):
     print time.clock()
     print 'reading index...'
     index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
@@ -214,7 +214,7 @@ def doProcessing(df):
     BLSH = ct.cdll.LoadLibrary('d:\\BLSH.dll')
     # set log level
     BLSH.setloglevel.argtypes = [ct.c_int64]
-    BLSH.setloglevel(3)
+    BLSH.setloglevel(loglevel)
     # set index
     BLSH.setindex.restype = ct.c_int64
     BLSH.setindex.argtypes = [ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_int]
@@ -259,7 +259,7 @@ def regressionTest():
     print time.clock()
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
-    doProcessing(df)
+    doProcessing(df, 1)
 
 def morningTrade():
     print time.clock()
@@ -300,10 +300,11 @@ def morningTrade():
     df = df[df.ptotalcap > 0]
     df = df[df.hfqratio > 1]
     df = df.sort_values('ptotalcap')
-    doProcessing(df)
+
+    doProcessing(df, 1)
 
 
-prepareMediateFile()
-#regressionTest()
+#prepareMediateFile()
+regressionTest()
 #morningTrade()
 
