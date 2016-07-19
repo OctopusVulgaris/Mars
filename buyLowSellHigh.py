@@ -54,30 +54,24 @@ def sort(x):
 
 def calc(x):
 
-    #x = x.sort_index()
-    #z = x.index
-    #x.reset_index(inplace=True)
     valid = x[x.open > 0.01]
-    #y = valid.index
-    #reset index to jump halt days
-    #valid = valid.reset_index()
 
-    #result = pd.DataFrame()
     validLen = len(valid)
+    validyesterday = valid.iloc[:validLen - 1]
 
     valid['phfqratio'] = 1
-    valid['phfqratio'].iloc[1:] = valid.hfqratio.values[:validLen - 1]
+    valid['phfqratio'].iloc[1:] = validyesterday.hfqratio.values
     factor = valid.phfqratio.iloc[1:] / valid.hfqratio.iloc[1:]
     valid['pclose'] = 0
-    valid['pclose'].iloc[1:] = valid.close.values[:validLen - 1] * factor
+    valid['pclose'].iloc[1:] = validyesterday.close.values * factor
     valid['pclose'] = round_series(valid.pclose)
 
     valid['plow'] = 0
-    valid['plow'].iloc[1:] = valid.low.values[:validLen - 1] * factor
+    valid['plow'].iloc[1:] = validyesterday.low.values * factor
     valid['plow'] = round_series(valid.plow)
 
     valid['phigh'] = 0
-    valid['phigh'].iloc[1:] = valid.high.values[:validLen - 1] * factor
+    valid['phigh'].iloc[1:] = validyesterday.high.values * factor
     valid['phigh'] = round_series(valid.phigh)
 
     valid['lowlimit'] = valid.pclose * 0.9
@@ -98,6 +92,7 @@ def calc(x):
     valid['ptotalcap'].iloc[1:] = x.totalcap.values[:validLen - 1]
 
     valid['name'] = x['name']
+    valid['totalcap'] = x.totalcap
     valid['hfqratio'] = x.hfqratio
     valid['phfqratio'].iloc[1:] = valid.hfqratio.values[:validLen - 1]
     valid['pclose'] = valid.pclose.fillna(method='ffill')
@@ -148,10 +143,29 @@ def sqltoHDF():
     print len(df)
     print datetime.datetime.now() - t1
 
+def ComputeCustomIndex(df):
+    #t1 = datetime.datetime.now()
+    #df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
+    #df = df[df.code.str.contains(ashare_pattern)]
+
+    #print datetime.datetime.now()- t1
+    groupbydate = df.groupby(level=0)
+    myindex = pd.DataFrame()
+    myindex['trdprc'] = groupbydate.apply(GetTotalCapIndex)
+    myindex['ma9'] = talib.MA(myindex.trdprc.values, timeperiod=9)
+    myindex['ma12'] = talib.MA(myindex.trdprc.values, timeperiod=12)
+    myindex['ma60'] = talib.MA(myindex.trdprc.values, timeperiod=60)
+    myindex['ma256'] = talib.MA(myindex.trdprc.values, timeperiod=256)
+    myindex = myindex.fillna(0)
+
+    myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
+
+    #print datetime.datetime.now() - t1
+
 def prepareMediateFile():
     t1 = datetime.datetime.now()
     print 'reading...'
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk', where='date > \'2006-5-1\'')
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk', columns=['close', 'high', 'low', 'open', 'totalcap', 'name', 'hfqratio'], where='date > \'2006-5-1\'')
     #df = df[df.code.str.contains(ashare_pattern)]
 
 
@@ -187,22 +201,24 @@ def prepareMediateFile():
     tomorrow.lowlimit = tomorrow.pclose * 0.9
     tomorrow.highlimit = tomorrow.pclose * 1.1
 
-    df = df.append(tomorrow)
+    df = df.append(tomorrow.set_index(['code', 'date']))
 
+    print 'switching index...'
     df = df[df.name.str.startswith('N') != True]
-    df = df.reset_index()
 
+    df = df.reset_index()
     df = df.set_index(['date', 'code'], drop=False)
     df.date = df.date.apply(lambda x: np.int64(time.mktime(x.timetuple())))
     df.code = df.code.apply(lambda x: np.int64(x))
     df = df.rename(columns={'date': 'idate', 'code': 'icode'})
     df = df.sort_index()
-    print df.columns
+    print 'sorting...'
+
     groupbydate = df.groupby(level=0)
     df = groupbydate.apply(sort)
-    print datetime.datetime.now() - t1
+
     df = df.reset_index(level=0, drop=True)
-    print datetime.datetime.now() - t1
+
     ComputeCustomIndex(df)
     print datetime.datetime.now() - t1
     print 'saving...'
@@ -211,23 +227,7 @@ def prepareMediateFile():
     print len(df)
     print datetime.datetime.now() - t1
 
-def ComputeCustomIndex(df):
-    #t1 = datetime.datetime.now()
-    #df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
-    #df = df[df.code.str.contains(ashare_pattern)]
 
-    #print datetime.datetime.now()- t1
-    groupbydate = df.groupby(level=0)
-    myindex = pd.DataFrame()
-    myindex['trdprc'] = groupbydate.apply(GetTotalCapIndex)
-    myindex['ma9'] = talib.MA(myindex.trdprc.values, timeperiod=9)
-    myindex['ma12'] = talib.MA(myindex.trdprc.values, timeperiod=12)
-    myindex['ma60'] = talib.MA(myindex.trdprc.values, timeperiod=60)
-    myindex['ma256'] = talib.MA(myindex.trdprc.values, timeperiod=256)
-
-    myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
-
-    #print datetime.datetime.now() - t1
 
 def Processing():
     print time.clock()
@@ -292,6 +292,6 @@ def Processing():
 
 
 
-#prepareMediateFile()
-Processing()
+prepareMediateFile()
+#Processing()
 
