@@ -22,7 +22,7 @@ to_be_sell = []
 cash = 100000.0
 poolsize = 300
 
-st_pattern = r'^ST|^S|^\*ST|退市'
+st_pattern = r'^S|^*|退市'
 ashare_pattern = r'^0|^3|^6'
 
 
@@ -161,13 +161,12 @@ def prepareMediateFile():
     # following values doesn't need adjust by hfqratio
     tomorrow.ptotalcap = tomorrow.totalcap
     tomorrow.phfqratio = tomorrow.hfqratio
+
     # following value need fill by real time value in the morning
     tomorrow.date = datetime.date(2050, 1, 1)
     tomorrow.open = 0
     tomorrow.hfqratio = 1
     tomorrow.stflag = 0
-    tomorrow.high = 0
-    tomorrow.low = 0
 
     # followiwng value still in yesterday ratio, need adjust by realtime hfqratio in the morning
     tomorrow.pclose = tomorrow.close
@@ -204,24 +203,21 @@ def prepareMediateFile():
     print datetime.datetime.now() - t1
 
 
-
-def Processing():
+def doProcessing(df):
     print time.clock()
-    print 'reading...'
-    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
+    print 'reading index...'
     index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
     index = index.fillna(0)
     index = index.loc['2008-1-1':]
 
     c_double_p = ct.POINTER(ct.c_double)
-    #set log level
-    setloglevel = ct.cdll.LoadLibrary('d:\\BLSH.dll').setloglevel
-    setloglevel.argtypes = [ct.c_int64]
-    setloglevel(3)
+    BLSH = ct.cdll.LoadLibrary('d:\\BLSH.dll')
+    # set log level
+    BLSH.setloglevel.argtypes = [ct.c_int64]
+    BLSH.setloglevel(3)
     # set index
-    setindex = ct.cdll.LoadLibrary('d:\\BLSH.dll').setindex
-    setindex.restype = ct.c_int64
-    setindex.argtypes = [ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_int]
+    BLSH.setindex.restype = ct.c_int64
+    BLSH.setindex.argtypes = [ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_int]
 
     cdate = index.index.to_series().apply(lambda x: np.int64(time.mktime(x.timetuple()))).get_values().ctypes.data_as(ct.c_void_p)
     cprc = index.trdprc.get_values().ctypes.data_as(c_double_p)
@@ -230,20 +226,11 @@ def Processing():
     cma3 = index.ma60.get_values().ctypes.data_as(c_double_p)
     cma4 = index.ma256.get_values().ctypes.data_as(c_double_p)
 
-    setindex(cdate, cprc, cma1, cma2, cma3, cma4, len(index))
+    BLSH.setindex(cdate, cprc, cma1, cma2, cma3, cma4, len(index))
 
     # process
-    process = ct.cdll.LoadLibrary('d:\\BLSH.dll').process
-    setindex.restype = ct.c_int64
-    process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
-
-    #ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
-    #td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
-    #tui = ct.cdll.LoadLibrary('d:\\BLSH.dll').testuint
-    #ti.argtypes = [ct.c_void_p, ct.c_int]
-    #td.argtypes = [c_double_p, ct.c_int]
-    #tui.argtypes = [ct.c_void_p, ct.c_int]
-
+    BLSH.process.restype = ct.c_int64
+    BLSH.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
     print time.clock()
 
     cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
@@ -258,14 +245,65 @@ def Processing():
     chfqratio = df.hfqratio.get_values().ctypes.data_as(c_double_p)
     cstflag = df.stflag.get_values().ctypes.data_as(ct.c_void_p)
 
-    for i in range(0, 1):
-        ret = process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, len(df))
+    ret = BLSH.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, len(df))
 
-
+        # ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
+        # td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
+        # tui = ct.cdll.LoadLibrary('d:\\BLSH.dll').testuint
+        # ti.argtypes = [ct.c_void_p, ct.c_int]
+        # td.argtypes = [c_double_p, ct.c_int]
+        # tui.argtypes = [ct.c_void_p, ct.c_int]
     print time.clock()
 
+def regressionTest():
+    print time.clock()
+    print 'reading...'
+    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
+    doProcessing(df)
+
+def morningTrade():
+    print time.clock()
+    logging.info('retrieving today all...')
+    realtime = pd.DataFrame()
+    retry = 0
+    while not get and retry < 15:
+        try:
+            retry += 1
+            # today = get_today_all()
+            realtime = get_realtime_all_st()
+            realtime = realtime.set_index('code')
+            if realtime.index.is_unique and len(realtime[realtime.open > 0]) > 500:
+                get = True
+        except Exception:
+            logging.error('retrying...')
+    print time.clock()
+    print 'reading temp file...'
+    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date = \'2050-1-1\'')
+
+    realtime = realtime[realtime.prev_close > 0]
+    df = df.reset_index(0)
+    df.reindex(realtime.index, fill_value=0)
+
+    df.date = datetime.date.today()
+    df.open = realtime.open
+    df.hfqratio = df.phfqratio * df.pclose / realtime.prev_close
+    df.loc[realtime.name.str.contains(st_pattern), 'stflag'] = 1
+
+    factor = df.phfqratio / df.hfqratio
+    df.pclose = round_series(df.pclose * factor)
+    df.plowlimit = round_series(df.plowlimit * factor)
+    df.plow = round_series(df.plow * factor)
+    df.phigh = round_series(df.phigh * factor)
+    df.lowlimit = round_series(df.lowlimit * factor)
+    df.highlimit = round_series(df.highlimit * factor)
+
+    df = df[df.ptotalcap > 0]
+    df = df[df.hfqratio > 1]
+    df = df.sort_values('ptotalcap')
+    doProcessing(df)
 
 
 prepareMediateFile()
-#Processing()
+#regressionTest()
+#morningTrade()
 
