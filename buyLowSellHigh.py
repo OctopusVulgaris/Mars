@@ -7,6 +7,7 @@ import numpy as np
 import ctypes as ct
 import time
 import talib
+import argparse
 from utility import round_series, get_realtime_all_st
 
 
@@ -28,8 +29,10 @@ ashare_pattern = r'^0|^3|^6'
 
 def GetTotalCapIndex(x):
     x = x.sort_values('ptotalcap')
-    x = x.head(int(len(x) / 10))
-    return x.ptotalcap.sum() / 100000
+    headlen = int(len(x) / 10)
+    x = x.head(headlen)
+    prc = x.ptotalcap.sum() / headlen
+    return prc / 100000
 
 
 def sort(x):
@@ -179,7 +182,7 @@ def prepareMediateFile():
     df = df.append(tomorrow.set_index(['code', 'date']))
 
     print 'switching index...'
-    df = df[df.name.str.startswith('N') != True]
+    df = df[df.ptotalcap > 0]
 
     df = df.reset_index()
     df = df.set_index(['date', 'code'], drop=False)
@@ -266,6 +269,7 @@ def morningTrade():
     logging.info('retrieving today all...')
     realtime = pd.DataFrame()
     retry = 0
+    get = False
     while not get and retry < 15:
         try:
             retry += 1
@@ -280,13 +284,13 @@ def morningTrade():
     print 'reading temp file...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date = \'2050-1-1\'')
 
-    realtime = realtime[realtime.prev_close > 0]
+    realtime = realtime[realtime.pre_close > 0]
     df = df.reset_index(0)
     df.reindex(realtime.index, fill_value=0)
 
     df.date = datetime.date.today()
     df.open = realtime.open
-    df.hfqratio = df.phfqratio * df.pclose / realtime.prev_close
+    df.hfqratio = df.phfqratio * df.pclose / realtime.pre_close
     df.loc[realtime.name.str.contains(st_pattern), 'stflag'] = 1
 
     factor = df.phfqratio / df.hfqratio
@@ -303,8 +307,22 @@ def morningTrade():
 
     doProcessing(df, 1)
 
+def getArgs():
+    parse=argparse.ArgumentParser()
+    parse.add_argument('-t', type=str, choices=['prepare', 'regression', 'trade'], default='regression', help='one of \'prepare\', \'regression\', \'trade\'')
 
-prepareMediateFile()
-#regressionTest()
-#morningTrade()
+    args=parse.parse_args()
+    return vars(args)
+
+if __name__=="__main__":
+    args = getArgs()
+    type = args['t']
+
+    if (type == 'regression'):
+        regressionTest()
+    elif (type == 'prepare'):
+        prepareMediateFile()
+    elif (type == 'trade'):
+        morningTrade()
+
 
