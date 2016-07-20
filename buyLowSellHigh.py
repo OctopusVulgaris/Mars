@@ -9,10 +9,13 @@ import time
 import talib
 import argparse
 from utility import round_series, get_realtime_all_st
-
-
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
+import socket
+import ConfigParser
 import logging
-import talib as ta
+
 
 
 max_holdings = 10
@@ -205,6 +208,24 @@ def prepareMediateFile():
     print len(df)
     print datetime.datetime.now() - t1
 
+def initializeholding():
+    BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
+
+    initholding = pd.read_csv('d:\\tradelog\\holding_real_c.csv', header=None, parse_dates=True, names=['date', 'code', 'buyprc', 'buyhfqratio', 'vol', 'historyhigh', 'amount', 'cash', 'total'], dtype={'code': np.int64, 'buyprc': np.float64, 'buyhfqratio': np.float64, 'vol': np.int64, 'historyhigh': np.float64, 'amount': np.float64, 'cash': np.float64, 'total': np.float64}, index_col='date')
+
+    BLSHdll.setindex.argtypes = [ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_int, ct.c_double, ct.c_double]
+
+    ccode = initholding.code.get_values().ctypes.data_as(ct.c_void_p)
+    cbuyprc = initholding.buyprc.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
+    cbuyhfqratio = initholding.buyhfqratio.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
+    cvol = initholding.vol.get_values().ctypes.data_as(ct.c_void_p)
+    chistoryhigh = initholding.historyhigh.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
+    camount = initholding.amount.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
+
+    if initholding.empty:
+        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, len(initholding), ct.c_double(100000.0), ct.c_double(100000.0))
+    else:
+        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, len(initholding), ct.c_double(initholding.cash.get_values()[0]), ct.c_double(initholding.total.get_values()[0]))
 
 def doProcessing(df, loglevel):
     print time.clock()
@@ -213,14 +234,15 @@ def doProcessing(df, loglevel):
     index = index.fillna(0)
     index = index.loc['2008-1-1':]
 
+    BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
+
     c_double_p = ct.POINTER(ct.c_double)
-    BLSH = ct.cdll.LoadLibrary('d:\\BLSH.dll')
     # set log level
-    BLSH.setloglevel.argtypes = [ct.c_int64]
-    BLSH.setloglevel(loglevel)
+    BLSHdll.setloglevel.argtypes = [ct.c_int64]
+    BLSHdll.setloglevel(loglevel)
     # set index
-    BLSH.setindex.restype = ct.c_int64
-    BLSH.setindex.argtypes = [ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_int]
+    BLSHdll.setindex.restype = ct.c_int64
+    BLSHdll.setindex.argtypes = [ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_int]
 
     cdate = index.index.to_series().apply(lambda x: np.int64(time.mktime(x.timetuple()))).get_values().ctypes.data_as(ct.c_void_p)
     cprc = index.trdprc.get_values().ctypes.data_as(c_double_p)
@@ -229,11 +251,11 @@ def doProcessing(df, loglevel):
     cma3 = index.ma60.get_values().ctypes.data_as(c_double_p)
     cma4 = index.ma256.get_values().ctypes.data_as(c_double_p)
 
-    BLSH.setindex(cdate, cprc, cma1, cma2, cma3, cma4, len(index))
+    BLSHdll.setindex(cdate, cprc, cma1, cma2, cma3, cma4, len(index))
 
     # process
-    BLSH.process.restype = ct.c_int64
-    BLSH.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
+    BLSHdll.process.restype = ct.c_int64
+    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
     print time.clock()
 
     cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
@@ -248,7 +270,7 @@ def doProcessing(df, loglevel):
     chfqratio = df.hfqratio.get_values().ctypes.data_as(c_double_p)
     cstflag = df.stflag.get_values().ctypes.data_as(ct.c_void_p)
 
-    ret = BLSH.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, len(df))
+    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, len(df))
 
         # ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
         # td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
@@ -262,6 +284,7 @@ def regressionTest():
     print time.clock()
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
+    BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
     doProcessing(df, 1)
 
 def morningTrade():
@@ -305,7 +328,35 @@ def morningTrade():
     df = df[df.hfqratio > 1]
     df = df.sort_values('ptotalcap')
 
+    initializeholding()
+
     doProcessing(df, 1)
+
+    transactions = pd.read_csv('d:\\tradelog\\transaction_real_c.csv', header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
+    transactions.date = datetime.date.today()
+    sendmail(transactions.to_string())
+
+def sendmail(log):
+    logging.info('sending mail')
+    config = ConfigParser.ConfigParser()
+    config.read('d:\\tradelog\\mail.ini')
+
+    fromaddr = config.get('mail', 'from')
+    toaddr = config.get('mail', 'to')
+    password = config.get('mail', 'pw')
+    msg = MIMEText(log, 'plain')
+    msg['Subject'] = Header('BLSH@' + str(datetime.date.today())  + '_' + socket.gethostname())
+    msg['From'] = fromaddr
+    msg['To'] = toaddr
+
+    try:
+        sm = smtplib.SMTP_SSL('smtp.qq.com')
+        sm.ehlo()
+        sm.login(fromaddr, password)
+        sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
+        sm.quit()
+    except Exception, e:
+        logging.error(str(e))
 
 def getArgs():
     parse=argparse.ArgumentParser()

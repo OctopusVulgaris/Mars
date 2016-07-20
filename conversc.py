@@ -55,7 +55,7 @@ df = df.groupby(level=0).apply(s).reset_index(0, drop=True).sort_index().reset_i
 df = df.drop_duplicates(keep='first')
 df.to_csv(ofilepath, index=False, columns=['date', 'type', 'code'])
 
-df = pd.read_csv(myfilepath, header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'amount', 'fee', 'cash'], index_col='date')
+df = pd.read_csv(myfilepath, header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
 
 df.type = df.type.replace({0:'buy', 1:'sell', 2:'sell', 3:'sell', 4:'sell'})
 df = df.groupby(level=0).apply(s).reset_index(0, drop=True).sort_index().reset_index()
@@ -63,6 +63,7 @@ del df['prc']
 del df['amount']
 del df['fee']
 del df['cash']
+del df['vol']
 df = df.drop_duplicates(keep='first')
 df.to_csv(omyfilepath, index=False, columns=['date', 'type', 'code'])
 
