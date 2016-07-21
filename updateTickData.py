@@ -45,18 +45,16 @@ all = all[all.open > 0]
 all = all.reset_index(level=1)
 
 threads = []
-t1 = threading.Thread(target=download_tick, args=(all.loc['000931':'000955'], backbone))
+t1 = threading.Thread(target=download_tick, args=(all.loc['002577':'002578'], backbone))
 threads.append(t1)
-t2 = threading.Thread(target=download_tick, args=(all.loc['002420':'002499'], backbone))
+t2 = threading.Thread(target=download_tick, args=(all.loc['002579':'002580'], backbone))
 threads.append(t2)
-t3 = threading.Thread(target=download_tick, args=(all.loc['000968':'000992'], backbone))
+t3 = threading.Thread(target=download_tick, args=(all.loc['002588':'002589'], backbone))
 threads.append(t3)
-t4 = threading.Thread(target=download_tick, args=(all.loc['600597':'600600'], backbone))
+t4 = threading.Thread(target=download_tick, args=(all.loc['002590':'002591'], backbone))
 threads.append(t4)
-t5 = threading.Thread(target=download_tick, args=(all.loc['002518':'002593'], backbone))
+t5 = threading.Thread(target=download_tick, args=(all.loc['002592':'002593'], backbone))
 threads.append(t5)
-t6 = threading.Thread(target=download_tick, args=(all.loc['601902':'603999'], backbone))
-threads.append(t6)
 
 
 t12 = threading.Thread(target=serialize, args=(backbone,))
