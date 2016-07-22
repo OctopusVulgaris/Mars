@@ -67,7 +67,7 @@ if __name__=="__main__":
     all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2006-1-1\'')
     all = all[all.open > 0]
     all = all.sort_index()
-    codelist = all.index.get_level_values(0).to_series().drop_duplicates().get_values()
+    codelist = all.index.get_level_values(0).to_series().drop_duplicates().loc['600300':].get_values()
     logging.info('codelist len: ' + str(len(codelist)))
 
     threads = []

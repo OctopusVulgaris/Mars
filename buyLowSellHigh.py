@@ -255,7 +255,7 @@ def doProcessing(df, loglevel):
 
     # process
     BLSHdll.process.restype = ct.c_int64
-    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_int]
+    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int]
     print time.clock()
 
     cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
@@ -269,8 +269,10 @@ def doProcessing(df, loglevel):
     clowlimit = df.lowlimit.get_values().ctypes.data_as(c_double_p)
     chfqratio = df.hfqratio.get_values().ctypes.data_as(c_double_p)
     cstflag = df.stflag.get_values().ctypes.data_as(ct.c_void_p)
+    cupperamo = df.upperamo.get_values().ctypes.data_as(ct.c_void_p)
+    cloweramo = df.loweramo.get_values().ctypes.data_as(ct.c_void_p)
 
-    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, len(df))
+    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, cupperamo, cloweramo, (df))
 
         # ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
         # td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
@@ -285,6 +287,8 @@ def regressionTest():
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
     BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
+    df['upperamo'] = np.int64(0)
+    df['loweramo'] = np.int64(0)
     doProcessing(df, 1)
 
 def morningTrade():
@@ -327,6 +331,8 @@ def morningTrade():
     df = df[df.ptotalcap > 0]
     df = df[df.hfqratio > 1]
     df = df.sort_values('ptotalcap')
+    df['upperamo'] = np.int64(0)
+    df['loweramo'] = np.int64(0)
 
     initializeholding()
 
