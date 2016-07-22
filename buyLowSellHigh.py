@@ -286,7 +286,7 @@ def regressionTest():
     print time.clock()
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
-
+    print len(df)
     df['upperamo'] = np.int64(0)
     df['loweramo'] = np.int64(0)
     doProcessing(df, 1)
