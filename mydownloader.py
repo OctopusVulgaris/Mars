@@ -75,21 +75,9 @@ def change_dic(x):
         return x
 
 def request_history_tick(code, datelist):
-
-
     logging.info('start requesting tick, code: ' + code)
 
     df = pd.DataFrame()
-    if len(datelist) < 1:
-        return df
-
-    if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
-        tmp = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
-        if not tmp.empty:
-            lastday = tmp.reset_index(level=1).date[-1].date()
-            datelist = datelist[datelist > lastday]
-    if len(datelist) < 1:
-        return df
 
     for cur_day in datelist:
         succeeded = False
