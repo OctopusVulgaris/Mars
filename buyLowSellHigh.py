@@ -272,7 +272,7 @@ def doProcessing(df, loglevel):
     cupperamo = df.upperamo.get_values().ctypes.data_as(ct.c_void_p)
     cloweramo = df.loweramo.get_values().ctypes.data_as(ct.c_void_p)
 
-    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, cupperamo, cloweramo, (df))
+    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, cupperamo, cloweramo, len(df))
 
         # ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
         # td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
@@ -286,7 +286,7 @@ def regressionTest():
     print time.clock()
     print 'reading...'
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
-    BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
+
     df['upperamo'] = np.int64(0)
     df['loweramo'] = np.int64(0)
     doProcessing(df, 1)
