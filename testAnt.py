@@ -8,23 +8,133 @@ import re
 import requests
 from lxml import etree
 from StringIO import StringIO
-from utility import round_series
+from utility import round_series, getcodelist
 
 import argparse
 import utility
 import datetime
 import time
 import logging
-
-
-from dataloader import engine, get_code_list
+import sys
 
 ashare_pattern = r'^0|^3|^6'
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S',
-                    filename='testAnt.log'
-                    )
+
+
+def updatestocklist(retry_count, pause):
+    """
+    get shanghai and shengkai stock list from their official website.
+    Note: A rule has been set in db which will trigger update whenever any duplicate insert
+
+    :param retry_count:
+    :param pause: in sec
+    :return:no
+    """
+    sz_onboard_url = 'http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1110&tab2PAGENUM=1&ENCODE=1&TABKEY=tab2'
+    sz_quit_onhold_url = 'http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1793_ssgs&ENCODE=1&TABKEY=tab1'
+    sz_quit_url = 'http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1793_ssgs&ENCODE=1&TABKEY=tab2'
+
+    sh_onboard_url = 'http://query.sse.com.cn/security/stock/downloadStockListFile.do?csrcCode=&stockCode=&areaName=&stockType=1'
+    sh_quit_onhold_url = 'http://query.sse.com.cn/security/stock/downloadStockListFile.do?csrcCode=&stockCode=&areaName=&stockType=4'
+    sh_quit_url = 'http://query.sse.com.cn/security/stock/downloadStockListFile.do?csrcCode=&stockCode=&areaName=&stockType=5'
+
+    header = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, sdch',
+        'Accept-Language': 'en-US,en;q=0.8,zh-CN;q=0.6',
+        'Connection': 'keep-alive',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Host': 'query.sse.com.cn',
+        'Referer': 'http://www.sse.com.cn/assortment/stock/list/share/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.112 Safari/537.36',
+        'Upgrade-Insecure-Request': '1'
+    }
+    logging.info('start retrieving stock list...' + str(datetime.datetime.now()))
+    for _ in range(retry_count):
+        dfs = []
+        print time.clock()
+        try:
+            # get info of shen zheng
+            r = requests.get(sz_onboard_url)  # , proxies=proxies)
+            sz_on = pd.read_html(r.content)
+            if sz_on:
+                df2 = sz_on[0].iloc[1:, [0, 1]]
+                df2.columns = ['code', 'name']
+                df2.code = df2.code.str.encode('utf-8')
+                df2.name = df2.name.str.encode('utf-8')
+                df2['status'] = 1
+                dfs.append(df2)
+
+            r = requests.get(sz_quit_onhold_url)  # , proxies=proxies)
+            sz_quit_onhold = pd.read_html(r.content)
+            if sz_quit_onhold:
+                df2 = sz_quit_onhold[0].iloc[1:, [0, 1]]
+                df2.columns = ['code', 'name']
+                df2.code = df2.code.str.encode('utf-8')
+                df2.name = df2.name.str.encode('utf-8')
+                df2['status'] = 0
+                dfs.append(df2)
+
+            r = requests.get(sz_quit_url)  # , proxies=proxies)
+            sz_quit = pd.read_html(r.content)
+            if sz_quit:
+                df2 = sz_quit[0].iloc[1:, [0, 1]]
+                df2.columns = ['code', 'name']
+                df2.code = df2.code.str.encode('utf-8')
+                df2.name = df2.name.str.encode('utf-8')
+                df2['status'] = -1
+                dfs.append(df2)
+
+            # get info of shang hai
+            r = requests.get(sh_onboard_url, headers=header)  # , proxies=proxies,)
+            # with open("sh_onboard.xls", "wb") as code:
+            #    code.write(r.content)
+            sh_on = pd.read_table(StringIO(r.content), encoding='gbk')
+            if not sh_on.empty:
+                df1 = sh_on.iloc[0:, [2, 3]]
+                df1.columns = ['code', 'name']
+                df1.code = df1.code.astype(str)
+                df1.name = df1.name.str.encode('utf-8')
+                df1['status'] = 1
+                dfs.append(df1)
+
+            r = requests.get(sh_quit_onhold_url, headers=header)  # , proxies=proxies,)
+            # with open("sh_quit_onhold.xls", "wb") as code:
+            #    code.write(r.content)
+            sh_onhold = pd.read_table(StringIO(r.content), encoding='gbk')
+            if not sh_onhold.empty:
+                df1 = sh_onhold.iloc[0:, [0, 1]]
+                df1.columns = ['code', 'name']
+                df1.code = df1.code.astype(str)
+                df1.name = df1.name.str.encode('utf-8')
+                df1['status'] = 0
+                dfs.append(df1)
+
+            r = requests.get(sh_quit_url, headers=header)  # , proxies=proxies,)
+            # with open("sh_quit.xls", "wb") as code:
+            #    code.write(r.content)
+            sh_quit = pd.read_table(StringIO(r.content), encoding='gbk')
+            if not sh_quit.empty:
+                df1 = sh_quit.iloc[0:, [0, 1]]
+                df1.columns = ['code', 'name']
+                df1.code = df1.code.astype(str)
+                df1.name = df1.name.str.encode('utf-8')
+                df1['status'] = -1
+                dfs.append(df1)
+        except Exception as e:
+            err = 'Error %s' % e
+            logging.info(err)
+            time.sleep(pause)
+        else:
+            print time.clock()
+            df = pd.concat(dfs)
+            df = df.drop_duplicates(subset='code', keep='last')
+            df = df.set_index('code')
+            df = df[df.index.get_level_values(0).str.contains(ashare_pattern)]
+            df = df.sort_index()
+            df.to_hdf('d:/HDF5_Data/stocklist.hdf', 'list', mode='w', format='f', complib='blosc')
+            logging.info('finished retrieving ' + str(len(df)) + ' successfully...' + str(datetime.datetime.now()))
+            return
+    logging.info('get_stock_list failed...' + str(datetime.datetime.now()))
 
 def get_bonus_and_ri(code, brsStore, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
@@ -196,22 +306,22 @@ def get_stock_change(code, brsStore, timeout=5):
 
 def get_bonus_ri_sc(retry=50, pause=1):
     brsStore = pd.HDFStore('D:\\HDF5_Data\\brsInfo.h5', complib='blosc', mode='w')
-    target_list = get_code_list('', '', engine)
+    target_list = getcodelist()
     itr = target_list.itertuples()
     try:
         row = next(itr)
         while row:
             for _ in range(retry):
                 try:
-                    print 'retrieving bonus_and_ri' + row.code.encode("utf-8")
-                    get_bonus_and_ri(row.code.encode("utf-8"), brsStore)
+                    print 'retrieving bonus_and_ri' + row.code
+                    get_bonus_and_ri(row.code, brsStore)
                     pass
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
                     time.sleep(pause)
                 else:
-                    logging.info('get today\'s bonus_and_ri data for %s successfully' % row.code.encode("utf-8"))
+                    logging.info('get today\'s bonus_and_ri data for %s successfully' % row.code)
                     break
             row = next(itr)
     except StopIteration as e:
@@ -223,15 +333,15 @@ def get_bonus_ri_sc(retry=50, pause=1):
         while row:
             for _ in range(retry):
                 try:
-                    print 'retrieving stock change' + row.code.encode("utf-8")
-                    get_stock_change(row.code.encode("utf-8"), brsStore)
+                    print 'retrieving stock change' + row.code
+                    get_stock_change(row.code, brsStore)
                     pass
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
                     time.sleep(pause)
                 else:
-                    logging.info('get today\'s stock change data for %s successfully' % row.code.encode("utf-8"))
+                    logging.info('get today\'s stock change data for %s successfully' % row.code)
                     break
             row = next(itr)
     except StopIteration as e:
@@ -277,7 +387,7 @@ def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1997,1,2
 
 def get_full_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='w')
-    target_list = get_code_list('', '', engine)
+    target_list = getcodelist()
     llen = len(target_list)
     cnt = 0
     itr = target_list.itertuples()
@@ -286,15 +396,15 @@ def get_full_daily_data_163(retry=50, pause=1):
         while row:
             for _ in range(retry):
                 try:
-                    get_stock_daily_data_163(row.code.encode("utf-8"), daykStore)
+                    get_stock_daily_data_163(row.code, daykStore)
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
                     time.sleep(pause)
                 else:
-                    logging.info('get daily data for %s successfully' % row.code.encode("utf-8"))
+                    logging.info('get daily data for %s successfully' % row.code)
                     cnt += 1
-                    print 'retrieved ' + row.code.encode("utf-8") + ', ' + str(cnt) + ' of ' + str(llen)
+                    print 'retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
                     break
             row = next(itr)
     except StopIteration as e:
@@ -310,7 +420,7 @@ def get_delta_daily_data_163(retry=50, pause=1):
         return
     tmpdf = tmpdf.sort_index(level=1, ascending=True)
     startdate = tmpdf.index.get_level_values(1)[-1] + datetime.timedelta(days=1)
-    target_list = get_code_list('', '', engine)
+    target_list = getcodelist()
     llen = len(target_list)
     cnt = 0
     itr = target_list.itertuples()
@@ -319,15 +429,15 @@ def get_delta_daily_data_163(retry=50, pause=1):
         while row:
             for _ in range(retry):
                 try:
-                    get_stock_daily_data_163(row.code.encode("utf-8"), daykStore, startdate)
+                    get_stock_daily_data_163(row.code, daykStore, startdate)
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
                     time.sleep(pause)
                 else:
-                    logging.info('get delta daily data for %s successfully' % row.code.encode("utf-8"))
+                    logging.info('get delta daily data for %s successfully' % row.code)
                     cnt += 1
-                    print 'retrieved delta ' + row.code.encode("utf-8") + ', ' + str(cnt) + ' of ' + str(llen)
+                    print 'retrieved delta ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
                     break
             row = next(itr)
     except StopIteration as e:
@@ -362,7 +472,7 @@ def get_today_all_from_sina(retry=50, pause=10):
     df.name = df.name.str.encode('utf-8')
 
     #get what missed in sina today all
-    target_list = get_code_list('', '', engine)
+    target_list = getcodelist()
     target_list = target_list.set_index('code')
     diff = target_list.index.difference(df.code).str.encode('utf-8')
     missed = utility.get_realtime_all_st(diff.values)
@@ -456,7 +566,17 @@ if __name__=="__main__":
     args = getArgs()
     type = args['t']
 
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='d:/tradelog/testAnt.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
+
     if (type == 'full'):
+        updatestocklist(5, 5)
         get_bonus_ri_sc()
         get_full_daily_data_163()
         calcFullRatio()

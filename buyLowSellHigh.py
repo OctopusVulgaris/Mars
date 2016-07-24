@@ -1,7 +1,6 @@
 # -*- coding:utf-8 -*-
 
 import pandas as pd
-import sqlalchemy as sa
 import datetime
 import numpy as np
 import ctypes as ct
@@ -15,7 +14,7 @@ from email.header import Header
 import socket
 import ConfigParser
 import logging
-
+import sys
 
 
 max_holdings = 10
@@ -107,30 +106,11 @@ def calc(x):
     return valid
 
 
-def csvtoHDF():
-    t1 = datetime.datetime.now()
-    print 'reading...'
-    aa = pd.read_csv('d:\\daily\\all_consolidate.csv', index_col='date', usecols=['code', 'date', 'name', 'close', 'high', 'low', 'open', 'vol', 'amo', 'totalcap', 'hfqratio'], parse_dates= True, chunksize= 500000, dtype={'code': np.str})
-    df = pd.concat(aa)
-
-    print len(df)
-
-    df.sort_index(inplace=True)
-    print datetime.datetime.now() - t1
-
-    print 'saving...'
-    df.to_hdf('d:\\HDF5_Data\\dailydata.hdf','day',mode='w', format='t', complib='blosc')
-
-    print len(df)
-    print datetime.datetime.now() - t1
-
-
 def ComputeCustomIndex(df):
     #t1 = datetime.datetime.now()
     #df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
     #df = df[df.code.str.contains(ashare_pattern)]
 
-    #print datetime.datetime.now()- t1
     groupbydate = df.groupby(level=0)
     myindex = pd.DataFrame()
     myindex['trdprc'] = groupbydate.apply(GetTotalCapIndex)
@@ -142,23 +122,18 @@ def ComputeCustomIndex(df):
 
     myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
 
-    #print datetime.datetime.now() - t1
 
 def prepareMediateFile():
-    t1 = datetime.datetime.now()
-    print 'reading...'
+    logging.info('reading dailydata.h5...' + str(datetime.datetime.now()))
     df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk', columns=['close', 'high', 'low', 'open', 'totalcap', 'tradeablecap', 'name', 'hfqratio'], where='date > \'2006-5-1\'')
     #df = df[df.code.str.contains(ashare_pattern)]
+    logging.info('sorting, [code, date]...' + str(datetime.datetime.now()))
 
-
-    print len(df)
     df = df[df.tradeablecap > 0]
     df.sort_index(inplace=True)
-    print datetime.datetime.now() - t1
 
+    logging.info('calculating...' + str(datetime.datetime.now()))
     groupbycode = df.groupby(level=0)
-
-    print 'calculating...'
     df = groupbycode.apply(calc)
 
     lastday = df.index.get_level_values(1)[-1]
@@ -184,7 +159,7 @@ def prepareMediateFile():
 
     df = df.append(tomorrow.set_index(['code', 'date']))
 
-    print 'switching index...'
+    logging.info('switching index...' + str(datetime.datetime.now()))
     df = df[df.ptotalcap > 0]
 
     df = df.reset_index()
@@ -192,21 +167,20 @@ def prepareMediateFile():
     df.date = df.date.apply(lambda x: np.int64(time.mktime(x.timetuple())))
     df.code = df.code.apply(lambda x: np.int64(x))
     df = df.rename(columns={'date': 'idate', 'code': 'icode'})
-    df = df.sort_index()
-    print 'sorting...'
 
+    logging.info('sorting, [date, code]...' + str(datetime.datetime.now()))
+    df = df.sort_index()
     groupbydate = df.groupby(level=0)
     df = groupbydate.apply(sort)
-
     df = df.reset_index(level=0, drop=True)
 
+    logging.info('compouting cumstom index...' + str(datetime.datetime.now()))
     ComputeCustomIndex(df)
-    print datetime.datetime.now() - t1
-    print 'saving...'
+
+    logging.info('saving...' + str(datetime.datetime.now()))
     df.to_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf','day',mode='w', format='t', complib='blosc')
 
-    print len(df)
-    print datetime.datetime.now() - t1
+    logging.info('all done...' + str(datetime.datetime.now()))
 
 def initializeholding():
     BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
@@ -228,8 +202,7 @@ def initializeholding():
         BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, len(initholding), ct.c_double(initholding.cash.get_values()[0]), ct.c_double(initholding.total.get_values()[0]))
 
 def doProcessing(df, loglevel):
-    print time.clock()
-    print 'reading index...'
+
     index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
     index = index.fillna(0)
     index = index.loc['2008-1-1':]
@@ -256,7 +229,7 @@ def doProcessing(df, loglevel):
     # process
     BLSHdll.process.restype = ct.c_int64
     BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int]
-    print time.clock()
+
 
     cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
     ccode = df.icode.get_values().ctypes.data_as(ct.c_void_p)
@@ -280,20 +253,25 @@ def doProcessing(df, loglevel):
         # ti.argtypes = [ct.c_void_p, ct.c_int]
         # td.argtypes = [c_double_p, ct.c_int]
         # tui.argtypes = [ct.c_void_p, ct.c_int]
-    print time.clock()
+
 
 def regressionTest():
-    print time.clock()
-    print 'reading...'
+    logging.info('reading dayk tmp...' + str(datetime.datetime.now()))
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-6\'')
-    print len(df)
-    df['upperamo'] = np.int64(0)
-    df['loweramo'] = np.int64(0)
+
+    logging.info('reading open split amount data...' + str(datetime.datetime.now()))
+    osa = pd.read_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', where='date > \'2008-1-6\'')
+    osa = osa.swaplevel(i='code', j='date')
+    osa = osa.reindex(df.index, fill_value=0)
+
+    df['upperamo'] = osa.upperamo
+    df['loweramo'] = osa.loweramo
+    logging.info('doProcessing...' + str(datetime.datetime.now()))
     doProcessing(df, 1)
+    logging.info('finished...' + str(datetime.datetime.now()))
 
 def morningTrade():
-    print time.clock()
-    logging.info('retrieving today all...')
+    logging.info('retrieving today all...'+ str(datetime.datetime.now()))
     realtime = pd.DataFrame()
     retry = 0
     get = False
@@ -307,8 +285,8 @@ def morningTrade():
                 get = True
         except Exception:
             logging.error('retrying...')
-    print time.clock()
-    print 'reading temp file...'
+
+    logging.info('reading temp file...' + str(datetime.datetime.now()))
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date = \'2050-1-1\'')
 
     realtime = realtime[realtime.pre_close > 0]
@@ -334,16 +312,19 @@ def morningTrade():
     df['upperamo'] = np.int64(0)
     df['loweramo'] = np.int64(0)
 
+    logging.info('initializing holding...' + str(datetime.datetime.now()))
     initializeholding()
 
+    logging.info('doProcessing...' + str(datetime.datetime.now()))
     doProcessing(df, 1)
 
+    logging.info('sending mail...' + str(datetime.datetime.now()))
     transactions = pd.read_csv('d:\\tradelog\\transaction_real_c.csv', header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
     transactions.date = datetime.date.today()
     sendmail(transactions.to_string())
+    logging.info('finished...' + str(datetime.datetime.now()))
 
 def sendmail(log):
-    logging.info('sending mail')
     config = ConfigParser.ConfigParser()
     config.read('d:\\tradelog\\mail.ini')
 
@@ -374,6 +355,15 @@ def getArgs():
 if __name__=="__main__":
     args = getArgs()
     type = args['t']
+
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='d:/tradelog/blsh.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
 
     if (type == 'regression'):
         regressionTest()
