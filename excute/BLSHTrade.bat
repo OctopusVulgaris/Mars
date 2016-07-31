@@ -1,1 +1,1 @@
-python D:\project\OctopusVulgaris\Mars\buyLowSellHigh_r.py -t morning
+python D:\project\OctopusVulgaris\Mars\buyLowSellHigh_r.py -t trade

@@ -158,7 +158,7 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
 
         binfo['adate'] = ''.join(item.xpath('td[1]/text()'))
         if(binfo['adate'].find(u'没有数据') > 0):
-            logging.info('Info %s "没有数据" bonus' % code)
+            #logging.info('Info %s "没有数据" bonus' % code)
             break
         if(binfo['adate'] == '--'):
             binfo['adate'] = '1900-1-1'
@@ -182,7 +182,7 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
 
         rinfo['adate'] = ''.join(item.xpath('td[1]/text()'))
         if (rinfo['adate'].find(u'没有数据') > 0):
-            logging.info('Info %s "没有数据" rightsissue' % code)
+            #logging.info('Info %s "没有数据" rightsissue' % code)
             break
         if (rinfo['adate'] == '--'):
             rinfo['adate'] = '1900-1-1'
@@ -217,7 +217,7 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
         #df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
     else:
         logging.info('Info %s has empty bonus' % code)
-        logging.info('Info len bitems %d' % len(bitems))
+        #logging.info('Info len bitems %d' % len(bitems))
 
     if len(dfs1) > 0:
         df1 = pd.concat(dfs1)
@@ -234,7 +234,7 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
         #df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
     else:
         logging.info('Info %s has empty righsissue' % code)
-        logging.info('Info len ritems %d' % len(ritems))
+        #logging.info('Info len ritems %d' % len(ritems))
 
 
 def is_digit_or_point(c):
@@ -581,6 +581,7 @@ if __name__=="__main__":
         get_full_daily_data_163()
         calcFullRatio()
     elif (type == 'delta'):
+        updatestocklist(5, 5)
         get_bonus_ri_sc()
         get_delta_daily_data_163()
         calcFullRatio()

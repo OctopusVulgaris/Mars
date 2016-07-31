@@ -183,9 +183,15 @@ def prepareMediateFile():
     logging.info('all done...' + str(datetime.datetime.now()))
 
 def initializeholding():
-    BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
 
     initholding = pd.read_csv('d:\\tradelog\\holding_real_c.csv', header=None, parse_dates=True, names=['date', 'code', 'buyprc', 'buyhfqratio', 'vol', 'historyhigh', 'amount', 'cash', 'total'], dtype={'code': np.int64, 'buyprc': np.float64, 'buyhfqratio': np.float64, 'vol': np.int64, 'historyhigh': np.float64, 'amount': np.float64, 'cash': np.float64, 'total': np.float64}, index_col='date')
+
+    if initholding.empty:
+        return
+
+    initholding = initholding.loc[initholding.index[-1]]
+
+    BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
 
     BLSHdll.setindex.argtypes = [ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_int, ct.c_double, ct.c_double]
 
@@ -286,6 +292,10 @@ def morningTrade():
         except Exception:
             logging.error('retrying...')
 
+    if (realtime.date.iloc[-1] != datetime.date.today()) & (realtime.date.iloc[0] != datetime.date.today()):
+        logging.info('today ' + str(datetime.date.today()) + ' is holiday, no trading...')
+        return
+
     logging.info('reading temp file...' + str(datetime.datetime.now()))
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date = \'2050-1-1\'')
 
@@ -294,6 +304,7 @@ def morningTrade():
     df.reindex(realtime.index, fill_value=0)
 
     df.date = datetime.date.today()
+    df.idate = np.int64(time.mktime(datetime.date.today().timetuple()))
     df.open = realtime.open
     df.hfqratio = df.phfqratio * df.pclose / realtime.pre_close
     df.loc[realtime.name.str.contains(st_pattern), 'stflag'] = 1

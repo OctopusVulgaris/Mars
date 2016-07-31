@@ -134,7 +134,6 @@ if __name__=="__main__":
     stdout_handler = logging.StreamHandler(sys.stdout)
     log.addHandler(stdout_handler)
 
-    logging.info('finished save tick, code: ' + code)
     all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-6-1\'')
     all = all[all.open > 0]
     all = all.reset_index(level=1)
