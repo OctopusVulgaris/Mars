@@ -324,7 +324,7 @@ def morningTrade():
     df['upperamo'] = np.int64(0)
     df['loweramo'] = np.int64(0)
 
-    df.to_hdf('d:/today.hdf', 'day')
+    df.to_hdf('d:/tradelog/today.hdf', 'day')
 
     index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
     index = index.fillna(0)
