@@ -292,7 +292,7 @@ def morningTrade():
         except Exception:
             logging.error('retrying...')
 
-    if (realtime.date.iloc[-1] != datetime.date.today()) & (realtime.date.iloc[0] != datetime.date.today()):
+    if (realtime.date.iloc[-1].date() < datetime.date.today()) & (realtime.date.iloc[0].date() < datetime.date.today()):
         logging.info('today ' + str(datetime.date.today()) + ' is holiday, no trading...')
         return
 
@@ -322,6 +322,8 @@ def morningTrade():
     df = df.sort_values('ptotalcap')
     df['upperamo'] = np.int64(0)
     df['loweramo'] = np.int64(0)
+
+    df.to_hdf('d:/today.hdf', 'day')
 
     logging.info('initializing holding...' + str(datetime.datetime.now()))
     initializeholding()
