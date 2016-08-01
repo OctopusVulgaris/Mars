@@ -207,11 +207,7 @@ def initializeholding():
     else:
         BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, len(initholding), ct.c_double(initholding.cash.get_values()[0]), ct.c_double(initholding.total.get_values()[0]))
 
-def doProcessing(df, loglevel):
-
-    index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
-    index = index.fillna(0)
-    index = index.loc['2008-1-1':]
+def doProcessing(df, index, loglevel):
 
     BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
 
@@ -272,8 +268,13 @@ def regressionTest():
 
     df['upperamo'] = osa.upperamo
     df['loweramo'] = osa.loweramo
+
+    index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
+    index = index.fillna(0)
+    index = index.loc['2008-1-1':]
+
     logging.info('doProcessing...' + str(datetime.datetime.now()))
-    doProcessing(df, 1)
+    doProcessing(df, index, 1)
     logging.info('finished...' + str(datetime.datetime.now()))
 
 def morningTrade():
@@ -325,11 +326,16 @@ def morningTrade():
 
     df.to_hdf('d:/today.hdf', 'day')
 
+    index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
+    index = index.fillna(0)
+    index = index.loc['2008-1-1':]
+    index.loc[datetime.date.today()] = index.loc['2050-1-1']
+
     logging.info('initializing holding...' + str(datetime.datetime.now()))
     initializeholding()
 
     logging.info('doProcessing...' + str(datetime.datetime.now()))
-    doProcessing(df, 1)
+    doProcessing(df, index, 1)
 
     logging.info('sending mail...' + str(datetime.datetime.now()))
     transactions = pd.read_csv('d:\\tradelog\\transaction_real_c.csv', header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
