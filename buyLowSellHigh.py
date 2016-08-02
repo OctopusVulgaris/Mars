@@ -217,7 +217,7 @@ def doProcessing(df, index, loglevel):
     BLSHdll.setloglevel(loglevel)
     # set index
     BLSHdll.setindex.restype = ct.c_int64
-    BLSHdll.setindex.argtypes = [ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_int]
+    BLSHdll.setindex.argtypes = [ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_int64]
 
     cdate = index.index.to_series().apply(lambda x: np.int64(time.mktime(x.timetuple()))).get_values().ctypes.data_as(ct.c_void_p)
     cprc = index.trdprc.get_values().ctypes.data_as(c_double_p)
@@ -230,7 +230,7 @@ def doProcessing(df, index, loglevel):
 
     # process
     BLSHdll.process.restype = ct.c_int64
-    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int]
+    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int64]
 
 
     cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
