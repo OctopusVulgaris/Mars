@@ -339,8 +339,13 @@ def morningTrade():
 
     logging.info('sending mail...' + str(datetime.datetime.now()))
     transactions = pd.read_csv('d:\\tradelog\\transaction_real_c.csv', header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
-    transactions.date = datetime.date.today()
-    sendmail(transactions.to_string())
+
+    try:
+        transactions = transactions.loc[datetime.date.today()]
+    except KeyError:
+        sendmail("no transaction today...")
+    else:
+        sendmail(transactions.to_string())
     logging.info('finished...' + str(datetime.datetime.now()))
 
 def sendmail(log):
