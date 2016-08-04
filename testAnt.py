@@ -131,7 +131,7 @@ def updatestocklist(retry_count, pause):
             df = df.set_index('code')
             df = df[df.index.get_level_values(0).str.contains(ashare_pattern)]
             df = df.sort_index()
-            df.to_hdf('d:/HDF5_Data/stocklist.hdf', 'list', mode='w', format='f', complib='blosc')
+            df.to_hdf('d:/HDF5_Data/stocklist.hdf', 'list', mode='w', format='t', complib='blosc')
             logging.info('finished retrieving ' + str(len(df)) + ' successfully...' + str(datetime.datetime.now()))
             return
     logging.info('get_stock_list failed...' + str(datetime.datetime.now()))
@@ -544,7 +544,7 @@ def calcFullRatio():
 
     all = si.tradeshare / si.prevts
     all = all.combine_first(factor)
-    all.to_hdf('d:\\HDF5_Data\\hfqfactor.hdf', 'factor', mode='w', format='f', complib='blosc')
+    all.to_hdf('d:\\HDF5_Data\\hfqfactor.hdf', 'factor', mode='w', format='t', complib='blosc')
     combinedIndex = all.index.union(df.index)
     all = all.reindex(combinedIndex, fill_value=1)
     all = all.groupby(level=0).apply(cumprod)

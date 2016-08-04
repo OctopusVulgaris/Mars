@@ -120,7 +120,7 @@ def ComputeCustomIndex(df):
     myindex['ma256'] = talib.MA(myindex.trdprc.values, timeperiod=256)
     myindex = myindex.fillna(0)
 
-    myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='f', complib='blosc')
+    myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='t', complib='blosc')
 
 
 def prepareMediateFile():
