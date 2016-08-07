@@ -8,7 +8,7 @@ import re
 import requests
 from lxml import etree
 from StringIO import StringIO
-from utility import round_series, getcodelist
+from utility import round_series, getcodelist, getindexlist
 
 import argparse
 import utility
@@ -18,6 +18,75 @@ import logging
 import sys
 
 ashare_pattern = r'^0|^3|^6'
+
+def convertNone(c):
+    if(c == 'None' or c == 'null' or c== 'NULL'):
+        return float(0.00)
+    else:
+        return float(c)
+
+def get_one_index_full(code, idxStore, timeout=60):
+    if code[0] == '0':
+        url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;VOTURNOVER;VATURNOVER'
+    else:
+        url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;VOTURNOVER;VATURNOVER'
+
+    r = requests.get(url, timeout=timeout)
+    data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期', parse_dates=True)
+    data.index.names = ['date']
+    if not data.empty:
+        data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','vol','amo']
+        data['code'] = code
+        data.name = data.name.str.encode('utf-8')
+        data['close'] = data['close'].apply(convertNone)
+        data['high'] = data['high'].apply(convertNone)
+        data['low'] = data['low'].apply(convertNone)
+        data['open'] = data['open'].apply(convertNone)
+        data['prevclose'] = data['prevclose'].apply(convertNone)
+        data['netchng'] = data['netchng'].apply(convertNone)
+        data['pctchng'] = data['pctchng'].apply(convertNone)
+        data['vol'] = data['vol'].apply(convertNone)
+        data['amo'] = data['amo'].apply(convertNone)
+
+        idxStore.append('idx', data, min_itemsize={'name': 30})
+
+def get_all_full_index_daily(retry=50, pause=10):
+    idxStore = pd.HDFStore('D:/HDF5_Data/indexdaily.h5', complib='blosc', mode='w')
+    target_list = getindexlist()
+    target_list.sort_values('code', inplace=True)
+    for code in target_list.code.values:
+        for _ in range(retry):
+            try:
+                get_one_index_full(code, idxStore)
+                pass
+            except Exception as e:
+                logging.info('Error %s' % e)
+                time.sleep(pause)
+            else:
+                logging.info('get history index data for %s successfully' % code)
+                break
+    idxStore.close()
+
+def updateindexlist():
+    sh_index_url = 'http://quotes.money.163.com/hs/service/hsindexrank.php?host=/hs/service/hsindexrank.php&query=IS_INDEX:true;EXCHANGE:CNSESH&fields=SYMBOL,NAME,PRICE,UPDOWN,PERCENT,zhenfu,VOLUME,TURNOVER,YESTCLOSE,OPEN,HIGH,LOW&sort=SYMBOL&order=asc&count=1000'
+    sz_index_url = 'http://quotes.money.163.com/hs/service/hsindexrank.php?host=/hs/service/hsindexrank.php&query=IS_INDEX:true;EXCHANGE:CNSESZ&fields=SYMBOL,NAME,PRICE,UPDOWN,PERCENT,zhenfu,VOLUME,TURNOVER,YESTCLOSE,OPEN,HIGH,LOW&sort=SYMBOL&order=asc&count=1000'
+
+    contentdf = pd.read_json(sh_index_url)
+    sh = pd.read_json(contentdf.list.to_json()).T
+    contentdf = pd.read_json(sz_index_url)
+    sz = pd.read_json(contentdf.list.to_json()).T
+    all = pd.concat([sh, sz])
+
+    if not all.empty:
+        all.CODE = all.CODE.str.encode('utf-8')
+        all.NAME = all.NAME.str.encode('utf-8')
+        all.CODE = all.CODE.str.slice(1)
+        all = all[['CODE', 'NAME']].reset_index(drop=True)
+        all.columns = ['code', 'name']
+        all.to_hdf('d:/hdf5_data/indexlist.hdf', 'day')
+        logging.info('finished to get index list...' + str(datetime.datetime.now()))
+    else:
+        logging.info('failed to get list...' + str(datetime.datetime.now()))
 
 
 def updatestocklist(retry_count, pause):
@@ -348,12 +417,6 @@ def get_bonus_ri_sc(retry=50, pause=1):
         pass
     brsStore.close()
 
-def convertNone(c):
-    if(c == 'None' or c == 'null' or c== 'NULL'):
-        return float(0.00)
-    else:
-        return float(c)
-
 def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1997,1,2), timeout=3):
     sdate = startdate.strftime('%Y%m%d')
     enddate = datetime.date.today() - datetime.timedelta(days=1)
@@ -576,11 +639,15 @@ if __name__=="__main__":
     log.addHandler(stdout_handler)
 
     if (type == 'full'):
+        updateindexlist()
+        get_all_full_index_daily()
         updatestocklist(5, 5)
         get_bonus_ri_sc()
         get_full_daily_data_163()
         calcFullRatio()
     elif (type == 'delta'):
+        updateindexlist()
+        get_all_full_index_daily()
         updatestocklist(5, 5)
         get_bonus_ri_sc()
         get_delta_daily_data_163()

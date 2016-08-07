@@ -78,6 +78,7 @@ def IO(codelist, q1, q2):
             if not tmp.empty:
                 lastday = tmp.reset_index(level=1).date[-1].date()
                 datelist = datelist[datelist > lastday]
+
         if len(datelist) < 1:
             continue
 
@@ -108,6 +109,7 @@ def IO(codelist, q1, q2):
 
     global g_flag
     g_flag += 2
+    logging.info('finish io. ')
 
 def requesttick(q1, q2):
     while True:
@@ -121,6 +123,7 @@ def requesttick(q1, q2):
 
         else:
             if g_flag >= 1:
+                logging.info('finish request. '+ str(threading.currentThread()))
                 return
 
 if __name__=="__main__":
@@ -137,6 +140,7 @@ if __name__=="__main__":
     all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-6-1\'')
     all = all[all.open > 0]
     all = all.reset_index(level=1)
+    logging.info('finish read. ')
     backbone1 = Queue.Queue()
     backbone2 = Queue.Queue()
     threads = []
@@ -159,6 +163,7 @@ if __name__=="__main__":
         t.start()
     t.join()
 
+    logging.info('all done. ')
 
 
 

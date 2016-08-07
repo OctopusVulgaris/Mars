@@ -54,6 +54,9 @@ def gop_worker(symbols, idx, retry=60):
 def getcodelist():
     return pd.read_hdf('d:/HDF5_Data/stocklist.hdf').reset_index()
 
+def getindexlist():
+    return pd.read_hdf('d:/HDF5_Data/indexlist.hdf')
+
 def get_realtime_all():
     start = time.time()
     riclist = dataloader.get_code_list('', '', engine)
