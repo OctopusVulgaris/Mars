@@ -16,6 +16,7 @@ import datetime
 import time
 import logging
 import sys
+import tushare as ts
 
 ashare_pattern = r'^0|^3|^6'
 
@@ -87,7 +88,6 @@ def updateindexlist():
         logging.info('finished to get index list...' + str(datetime.datetime.now()))
     else:
         logging.info('failed to get list...' + str(datetime.datetime.now()))
-
 
 def updatestocklist(retry_count, pause):
     """
@@ -305,7 +305,6 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
         logging.info('Info %s has empty righsissue' % code)
         #logging.info('Info len ritems %d' % len(ritems))
 
-
 def is_digit_or_point(c):
     if(str.isdigit(c)):
         return True
@@ -447,7 +446,6 @@ def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1997,1,2
         data = data.sort_index()
         daykStore.append('dayk', data, min_itemsize={'values': 30})
 
-
 def get_full_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='w')
     target_list = getcodelist()
@@ -501,6 +499,84 @@ def get_delta_daily_data_163(retry=50, pause=1):
                     logging.info('get delta daily data for %s successfully' % row.code)
                     cnt += 1
                     print 'retrieved delta ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
+    daykStore.close()
+
+def get_full_daily_data_sina(retry=50, pause=1):
+    daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata_sina.h5', complib='blosc', mode='w')
+    target_list = getcodelist()
+    llen = len(target_list)
+    cnt = 0
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    data = ts.get_h_data(row.code, start='1997-01-01', autype=None, drop_factor=False)
+                    if data is None:
+                        data
+                    elif data.empty:
+                        logging.info('Error, empty dayk for code: %s' % (row.code))
+                    else:
+                        data = data.sort_index()
+                        data['hfqratio'] = 1.0
+                        data['code'] = row.code
+                        data = data.set_index(['code', data.index])
+                        daykStore.append('dayk', data)
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get daily data for %s successfully' % row.code)
+                    cnt += 1
+                    print 'retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
+    daykStore.close()
+
+def get_delta_daily_data_sina(retry=50, pause=1):
+    daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata_sina.h5', complib='blosc', mode='a')
+    target_list = getcodelist()
+    llen = len(target_list)
+    cnt = 0
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    startdate = '1997-01-01'
+                    df = daykStore.select('dayk', where='code==\'%s\'' %(row.code))
+                    if not df.empty:
+                        t = df.index.get_level_values(1)[-1] + datetime.timedelta(days=1)
+                        startdate = t.strftime('%Y-%m-%d')
+
+                    data = ts.get_h_data(row.code, start=startdate, autype=None, drop_factor=False)
+                    if data is None:
+                        data
+                    elif data.empty:
+                        logging.info('Error, empty dayk for code: %s' % (row.code))
+                    else:
+                        data = data.sort_index()
+                        data['hfqratio'] = 1.0
+                        data['code'] = row.code
+                        data = data.set_index(['code', data.index])
+                        daykStore.append('dayk', data)
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get daily data for %s successfully' % row.code)
+                    cnt += 1
+                    print 'retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
                     break
             row = next(itr)
     except StopIteration as e:
@@ -564,9 +640,9 @@ def close2PrevClose(x):
 def cumprod(x):
     return x.cumprod()
 
-def calcFullRatio():
+def calcFullRatio(daydata):
     t1 = datetime.datetime.now()
-    dayk = pd.HDFStore('d:\\HDF5_Data\\dailydata.h5', mode='a', complib='blosc')
+    dayk = pd.HDFStore(daydata, mode='a', complib='blosc')
     brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r', complib='blosc')
     df = dayk.select('dayk')
     bi = brs.select('bonus')
@@ -613,14 +689,14 @@ def calcFullRatio():
     all = all.groupby(level=0).apply(cumprod)
     df.hfqratio = all
     #df.hfqratio.fillna(1, inplace=True)
-
+    df = df.sort_index()
     dayk.put('dayk', df, format='t')
 
     dayk.close()
     print datetime.datetime.now() - t2
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['full', 'delta'], default='full', help='download type')
+    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta'], default='sinadelta', help='download type')
 
     args=parse.parse_args()
     return vars(args)
@@ -639,19 +715,31 @@ if __name__=="__main__":
     log.addHandler(stdout_handler)
 
     if (type == 'full'):
-        updateindexlist()
-        get_all_full_index_daily()
+        #updateindexlist()
+        #get_all_full_index_daily()
         updatestocklist(5, 5)
         get_bonus_ri_sc()
         get_full_daily_data_163()
-        calcFullRatio()
+        calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
     elif (type == 'delta'):
-        updateindexlist()
-        get_all_full_index_daily()
+        #updateindexlist()
+        #get_all_full_index_daily()
         updatestocklist(5, 5)
         get_bonus_ri_sc()
         get_delta_daily_data_163()
-        calcFullRatio()
+        calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
+    elif (type == 'sinafull'):
+
+        #updatestocklist(5, 5)
+        #get_bonus_ri_sc()
+        get_full_daily_data_sina()
+        calcFullRatio('d:\\HDF5_Data\\dailydata_sina.h5')
+    elif (type == 'sinadelta'):
+
+        #updatestocklist(5, 5)
+        #get_bonus_ri_sc()
+        get_delta_daily_data_sina()
+        calcFullRatio('d:\\HDF5_Data\\dailydata_sina.h5')
 
 
     #get_bonus_ri_sc()

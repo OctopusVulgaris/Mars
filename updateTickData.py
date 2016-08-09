@@ -90,22 +90,24 @@ def IO(codelist, q1, q2):
         while not q2.empty():
             df = q2.get()
             requestcnt = requestcnt - 1
-            code = df.index.get_level_values(0)[0]
-            if len(df) < 100:
-                logging.warning('len of df less than 100, code: ' + code)
-            df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
-            logging.info('finished save tick, code: ' + code)
+            if not df.empty():
+                code = df.index.get_level_values(0)[0]
+                if len(df) < 100:
+                    logging.warning('len of df less than 100, code: ' + code)
+                df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
+                logging.info('finished save tick, code: ' + code + ', requestcnt: ' + str(requestcnt))
 
     while requestcnt > 0:
         if not q2.empty():
             df = q2.get()
             requestcnt = requestcnt - 1
-            code = df.index.get_level_values(0)[0]
-            if len(df) < 100:
-                logging.warning('len of df less than 100, code: ' + code)
-            df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
-            logging.info('finished save tick, code: ' + code)
-            print requestcnt
+            if not df.empty():
+                code = df.index.get_level_values(0)[0]
+                if len(df) < 100:
+                    logging.warning('len of df less than 100, code: ' + code)
+                df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
+                logging.info('finished save tick, code: ' + code + ', requestcnt: ' + str(requestcnt))
+                print requestcnt
 
     global g_flag
     g_flag += 2
@@ -116,10 +118,9 @@ def requesttick(q1, q2):
         if not q1.empty():
             s = q1.get()
             df = request_history_tick(s[0], s[1])
-            if not df.empty:
-                q2.put(df)
-            else:
+            if df.empty():
                 logging.info('empty tick, code: ' + s[0])
+            q2.put(df)
 
         else:
             if g_flag >= 1:
