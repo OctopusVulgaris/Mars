@@ -288,10 +288,11 @@ def morningTrade():
             # today = get_today_all()
             realtime = get_realtime_all_st()
             realtime = realtime.set_index('code')
-            if realtime.index.is_unique and len(realtime[realtime.open > 0]) > 500:
+            if realtime.index.is_unique and len(realtime[realtime.open > 0]) > 500 and (realtime.date.iloc[-1].date() >= datetime.date.today()) & (realtime.date.iloc[0].date() >= datetime.date.today()):
                 get = True
         except Exception:
             logging.error('retrying...')
+            time.sleep(1)
 
     if (realtime.date.iloc[-1].date() < datetime.date.today()) & (realtime.date.iloc[0].date() < datetime.date.today()):
         logging.info('today ' + str(datetime.date.today()) + ' is holiday, no trading...')

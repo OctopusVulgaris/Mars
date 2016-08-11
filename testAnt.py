@@ -1,15 +1,12 @@
 # -*- coding:utf-8 -*-
-
+import zipfile
 import pandas as pd
-import tushare as ts
 import numpy as np
-import json
-import re
 import requests
 from lxml import etree
 from StringIO import StringIO
 from utility import round_series, getcodelist, getindexlist
-
+import random, string
 import argparse
 import utility
 import datetime
@@ -516,14 +513,13 @@ def get_full_daily_data_sina(retry=50, pause=1):
         while row:
             for _ in range(retry):
                 try:
-                    data = ts.get_h_data(row.code, start='1997-01-01', autype=None, drop_factor=False)
+                    data = ts.get_h_data(row.code, start='1990-01-01', autype='hfq', drop_factor=False)
                     if data is None:
                         data
                     elif data.empty:
                         logging.info('Error, empty dayk for code: %s' % (row.code))
                     else:
                         data = data.sort_index()
-                        data['hfqratio'] = 1.0
                         data['code'] = row.code
                         data = data.set_index(['code', data.index])
                         daykStore.append('dayk', data)
@@ -558,14 +554,13 @@ def get_delta_daily_data_sina(retry=50, pause=1):
                         t = df.index.get_level_values(1)[-1] + datetime.timedelta(days=1)
                         startdate = t.strftime('%Y-%m-%d')
 
-                    data = ts.get_h_data(row.code, start=startdate, autype=None, drop_factor=False)
+                    data = ts.get_h_data(row.code, start=startdate, autype='hfq', drop_factor=False)
                     if data is None:
                         data
                     elif data.empty:
                         logging.info('Error, empty dayk for code: %s' % (row.code))
                     else:
                         data = data.sort_index()
-                        data['hfqratio'] = 1.0
                         data['code'] = row.code
                         data = data.set_index(['code', data.index])
                         daykStore.append('dayk', data)
@@ -582,6 +577,115 @@ def get_delta_daily_data_sina(retry=50, pause=1):
     except StopIteration as e:
         pass
     daykStore.close()
+
+
+
+def random_str(randomlength=8):
+    a = list(string.ascii_letters)
+    random.shuffle(a)
+    return ''.join(a[:randomlength])
+
+def getcninfooneric(code, startyear, endyear):
+    if code[0] == '6':
+        exchange = 'sh'
+    else:
+        exchange = 'sz'
+
+    BOUNDARY = "----WebKitFormBoundary" + random_str(16)
+    fields = [['K_code', ''],
+         ['market', exchange],
+         ['type', 'hq'],
+         ['code', code],
+         ['orgid', 'gs' + exchange + code],
+         ['minYear', startyear],
+         ['maxYear', endyear],
+         ['hq_code', code],
+         ['hq_k_code', ''],
+         ['cw_code', ''],
+         ['cw_k_code', '']]
+    CRLF = '\r\n'
+    L = []
+    for (key, value) in fields:
+        L.append('--' + BOUNDARY)
+        L.append('Content-Disposition: form-data; name="%s"' % key)
+        L.append('')
+        L.append(value)
+    L.append('--' + BOUNDARY + '--')
+    L.append('')
+    body = CRLF.join(L)
+    headers = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate',
+        'Accept-Language': 'zh-CN,zh;q=0.8',
+        'Cache-Control': 'max-age=0',
+        #'Connection': 'keep-alive',
+        'Content-Length': '1107',
+        'Content-Type': 'multipart/form-data; boundary=' + BOUNDARY,
+        # 'Cookie':'JSESSIONID=EDCC00C060A5E9338635CE524C7305FC',
+        'Host': 'www.cninfo.com.cn',
+        'Origin': 'http://www.cninfo.com.cn',
+        # 'Proxy-Connection':'keep-alive',
+        'Referer': 'http://www.cninfo.com.cn/cninfo-new/index',
+        'Upgrade-Insecure-Requests': '1',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36',
+    }
+    r = requests.post("http://www.cninfo.com.cn/cninfo-new/data/download", data=body, headers=headers)
+
+    df = pd.DataFrame()
+    if zipfile.is_zipfile(StringIO(r.content)):
+        data = zipfile.ZipFile(StringIO(r.content))
+        data.extractall('d:/cninfo')
+        for name in data.namelist():
+            csv = pd.read_csv(data.open(StringIO(name).read()), parse_dates=[2], encoding='gbk', dtype={0: str})
+            if len(csv) == 1:
+                continue
+            csv.fillna(0, inplace=True)
+            csv.columns = ['code', 'name', 'date', 'exchange', 'pclose', 'open', 'volume', 'high', 'low', 'close', 'tradecnt', 'pctchange', 'amount']
+
+            csv.code = csv.code.str.strip().str.encode('utf-8')
+            csv.name = csv.name.str.encode('utf-8')
+            csv.exchange = csv.exchange.str.encode('utf-8')
+            csv.amount = csv.amount.astype(float)
+            csv.volume = csv.volume.astype(float)
+            csv.tradecnt = csv.tradecnt.astype(float)
+
+            df = df.append(csv)
+    return df
+
+
+def getcninfodaily(type='delta', retry=50, pause=2):
+    if type == 'delta':
+        mode = 'a'
+        start = str(datetime.date.today().year)
+        end = start
+    else:
+        mode = 'w'
+        start = '1990'
+        end = str(datetime.date.today().year - 1)
+
+    daykStore = pd.HDFStore('D:/HDF5_Data/dailydata_cninfo.h5', complib='blosc', mode=mode)
+    target_list = getcodelist()
+    target_list = target_list[target_list.status > 0]
+    llen = len(target_list)
+    cnt = 0
+    for code in target_list.code.values:
+        for _ in range(retry):
+            time.sleep(pause)
+            try:
+                df = getcninfooneric(code, start, end)
+                if df.empty:
+                    logging.info('there is no data for %s' % code)
+                    continue
+                else:
+                    daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+            except Exception as e:
+                logging.info('Error, %s, %s' % (code, e))
+            else:
+                cnt += 1
+                logging.info('get cninfo daily data for %s successfully' % code + ', %d of %d' %(cnt, llen))
+                break
+    daykStore.close()
+
 
 def close_check(row):
     if row.open - 0.0 < 0.000001:
@@ -694,9 +798,10 @@ def calcFullRatio(daydata):
 
     dayk.close()
     print datetime.datetime.now() - t2
+
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta'], default='sinadelta', help='download type')
+    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta', 'cninfofull', 'cninfodelta'], default='delta', help='download type')
 
     args=parse.parse_args()
     return vars(args)
@@ -729,24 +834,11 @@ if __name__=="__main__":
         get_delta_daily_data_163()
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
     elif (type == 'sinafull'):
-
-        #updatestocklist(5, 5)
-        #get_bonus_ri_sc()
+        updatestocklist(5, 5)
         get_full_daily_data_sina()
-        calcFullRatio('d:\\HDF5_Data\\dailydata_sina.h5')
     elif (type == 'sinadelta'):
-
         #updatestocklist(5, 5)
-        #get_bonus_ri_sc()
         get_delta_daily_data_sina()
-        calcFullRatio('d:\\HDF5_Data\\dailydata_sina.h5')
-
-
-    #get_bonus_ri_sc()
-    #()
-
-    #get_today_all_from_sina()
-
 
 
 
