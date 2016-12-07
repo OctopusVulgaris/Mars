@@ -652,7 +652,6 @@ def getcninfooneric(code, startyear, endyear):
             df = df.append(csv)
     return df
 
-
 def getcninfodaily(type='delta', retry=50, pause=2):
     if type == 'delta':
         mode = 'a'
@@ -801,7 +800,7 @@ def calcFullRatio(daydata):
 
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta', 'cninfofull', 'cninfodelta'], default='delta', help='download type')
+    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta', 'cninfofull', 'cninfodelta', 'index'], default='delta', help='download type')
 
     args=parse.parse_args()
     return vars(args)
@@ -820,15 +819,13 @@ if __name__=="__main__":
     log.addHandler(stdout_handler)
 
     if (type == 'full'):
-        #updateindexlist()
-        #get_all_full_index_daily()
+        updateindexlist()
+        get_all_full_index_daily()
         updatestocklist(5, 5)
         get_bonus_ri_sc()
         get_full_daily_data_163()
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
     elif (type == 'delta'):
-        #updateindexlist()
-        #get_all_full_index_daily()
         updatestocklist(5, 5)
         get_bonus_ri_sc()
         get_delta_daily_data_163()
@@ -839,6 +836,9 @@ if __name__=="__main__":
     elif (type == 'sinadelta'):
         #updatestocklist(5, 5)
         get_delta_daily_data_sina()
+    elif (type == 'index'):
+        updateindexlist()
+        get_all_full_index_daily()
 
 
 
