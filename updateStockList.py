@@ -101,6 +101,7 @@ def get_stock_list(retry_count, pause):
                 df1.to_sql('stock_list', engine, if_exists='append', index=False)
         except Exception as e:
             err = 'Error %s' % e
+            print err
             logging.info(err)
             time.sleep(pause)
         else:

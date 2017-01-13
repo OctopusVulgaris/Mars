@@ -370,10 +370,16 @@ def get_stock_change(code, timeout=10):
             sinfo['reason'] = ''.join(table.xpath('tbody/tr[4]/td[%d]/text()'%col))
             sinfo['totalshare'] = ''.join(table.xpath('tbody/tr[5]/td[%d]/text()'%col))
             sinfo['totalshare'] = filter(is_digit_or_point, sinfo['totalshare'].encode('utf-8'))
+            if (sinfo['totalshare'] == ''):
+                sinfo['totalshare'] = '0'
             sinfo['tradeshare'] = ''.join(table.xpath('tbody/tr[7]/td[%d]/text()'%col))
             sinfo['tradeshare'] = filter(is_digit_or_point, sinfo['tradeshare'].encode('utf-8'))
+            if (sinfo['tradeshare'] == ''):
+                sinfo['tradeshare'] = '0'
             sinfo['limitshare'] = ''.join(table.xpath('tbody/tr[9]/td[%d]/text()'%col))
             sinfo['limitshare'] = filter(is_digit_or_point, sinfo['limitshare'].encode('utf-8'))
+            if (sinfo['limitshare'] == ''):
+                sinfo['limitshare'] = '0'
             sinfo['prevts'] = prev_tradeable_share
             prev_tradeable_share = sinfo['tradeshare']
             write_stockchange_to_db(sinfo)
@@ -792,18 +798,21 @@ def get_all_full_index_daily(retry=50, pause=10):
     target_list = dataloader.get_index_list('', '', engine)
     itr = target_list.itertuples()
     row = next(itr)
-    while row:
-        for _ in range(retry):
-            try:
-                get_index_full_daily_data(row.code.encode("utf-8"))
-            except Exception as e:
-                err = 'Error %s' % e
-                logging.info('Error %s' % e)
-                time.sleep(pause)
-            else:
-                logging.info('get index data for %s successfully' % row.code.encode("utf-8"))
-                break
-        row = next(itr)
+    try:
+        while row:
+            for _ in range(retry):
+                try:
+                    get_index_full_daily_data(row.code.encode("utf-8"))
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get index data for %s successfully' % row.code.encode("utf-8"))
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
 
 def close_check(row):
     if row.open - 0.0 < 0.000001:
@@ -1042,7 +1051,7 @@ def postdelta():
 
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['full', 'delta','bonus','bnd'], default='full', help='download type')
+    parse.add_argument('-t', type=str, choices=['full', 'delta','bonus','bnd','index'], default='full', help='download type')
 
     args=parse.parse_args()
     return vars(args)
@@ -1072,6 +1081,8 @@ if __name__=="__main__":
         get_today_all_from_163()
         get_today_all_from_sina()
         postdelta()
+    elif(type == 'index'):
+        get_all_full_index_daily()
 
     #update_weekly_data()
     #get_bonus_and_ri('300208')
