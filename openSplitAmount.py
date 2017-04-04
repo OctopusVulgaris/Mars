@@ -23,27 +23,31 @@ def getlastdate(code):
 
 def readandsave(q1, q2, codelist):
     savecnt = 0
-    for code in codelist:
-        onedaytick = pd.read_hdf('d:\\HDF5_Data\\tick\\tick_tbl_'+code, where='date > \'' + getlastdate(code) + '\'')
-        logging.info('finished read tick, code: ' + code)
-        if onedaytick.empty:
-            continue
-        q1.put(onedaytick)
-        savecnt += 1
+    try:
+        for code in codelist:
+            onedaytick = pd.read_hdf('d:\\HDF5_Data\\tick\\tick_tbl_'+code, where='date > \'' + getlastdate(code) + '\'')
+            logging.info('finished read tick, code: ' + code)
+            if onedaytick.empty:
+                continue
+            q1.put(onedaytick)
+            savecnt += 1
 
-        while not q2.empty():
-            r = q2.get()
-            r.to_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', format='t', append=True, complib='blosc', mode='a')
-            logging.info('finished save tick, code: ' + r.index.get_level_values(0)[0])
-            savecnt = savecnt - 1
+            while not q2.empty():
+                r = q2.get()
+                r.to_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', format='t', append=True, complib='blosc', mode='a')
+                logging.info('finished save tick, code: ' + r.index.get_level_values(0)[0])
+                savecnt = savecnt - 1
 
-    while savecnt > 0:
-        if not q2.empty():
-            r = q2.get()
-            r.to_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', format='t', append=True, complib='blosc', mode='a')
-            logging.info('finished save tick, code: ' + r.index.get_level_values(0)[0])
-            savecnt = savecnt - 1
-            print savecnt
+        while savecnt > 0:
+            if not q2.empty():
+                r = q2.get()
+                r.to_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', format='t', append=True, complib='blosc', mode='a')
+                logging.info('finished save tick, code: ' + r.index.get_level_values(0)[0])
+                savecnt = savecnt - 1
+                print savecnt
+    except Exception as e:
+        err = 'Error %s' % e
+        logging.info('Error %s' % e)
     global g_flag
     g_flag += 2
 
@@ -72,7 +76,7 @@ if __name__=="__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
-                        filename='opensplit.log'
+                        filename='d:/tradelog/opensplit.log'
                         )
     log = logging.getLogger()
     stdout_handler = logging.StreamHandler(sys.stdout)

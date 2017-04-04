@@ -56,76 +56,83 @@ def request_history_tick(code, datelist):
 
         except Exception:
             retry += 1
-            logging.error(str(code) + ' request tick retry ' + str(retry) + ' on ' + str(cur_day))
+            logging.error(str(code) + ' request tick;; retry ' + str(retry) + ' on ' + str(cur_day))
 
     logging.info('finished request tick, code: ' + code)
     if not df.empty:
         df = df.set_index(['code', 'date'])
-        df.sort_index()
+        #df.sort_index()
     return df
 
 
 def IO(codelist, q1, q2):
     a = codelist.index.drop_duplicates()
     requestcnt = 0
-    for code in a.values:
-        datelist = codelist.loc[code:code].date
-        if len(datelist) < 1:
-            continue
+    try:
+        for code in a.values:
+            datelist = codelist.loc[code:code].date
+            if len(datelist) < 1:
+                continue
 
-        if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
-            tmp = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
-            if not tmp.empty:
-                lastday = tmp.reset_index(level=1).date[-1].date()
-                datelist = datelist[datelist > lastday]
+            if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
+                tmp = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
+                if not tmp.empty:
+                    lastday = tmp.reset_index(level=1).date[-1].date()
+                    datelist = datelist[datelist > lastday]
 
-        if len(datelist) < 1:
-            continue
+            if len(datelist) < 1:
+                continue
 
-        logging.info('finish get datelist, code: ' + code)
-        s = [code, datelist]
-        q1.put(s)
-        requestcnt += 1
+            logging.info('finish get datelist, code: ' + code)
+            s = [code, datelist]
+            q1.put(s)
+            requestcnt += 1
 
-        while not q2.empty():
-            df = q2.get()
-            requestcnt = requestcnt - 1
-            if not df.empty():
-                code = df.index.get_level_values(0)[0]
-                if len(df) < 100:
-                    logging.warning('len of df less than 100, code: ' + code)
-                df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
-                logging.info('finished save tick, code: ' + code + ', requestcnt: ' + str(requestcnt))
+            while not q2.empty():
+                df = q2.get()
+                requestcnt = requestcnt - 1
+                if not df.empty:
+                    code = df.index.get_level_values(0)[0]
+                    if len(df) < 100:
+                        logging.warning('len of df less than 100, code: ' + code)
+                    df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
+                    logging.info('finished save tick, code: ' + code + ', requestcnt: ' + str(requestcnt))
 
-    while requestcnt > 0:
-        if not q2.empty():
-            df = q2.get()
-            requestcnt = requestcnt - 1
-            if not df.empty():
-                code = df.index.get_level_values(0)[0]
-                if len(df) < 100:
-                    logging.warning('len of df less than 100, code: ' + code)
-                df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
-                logging.info('finished save tick, code: ' + code + ', requestcnt: ' + str(requestcnt))
-                print requestcnt
-
+        while requestcnt > 0:
+            if not q2.empty():
+                df = q2.get()
+                requestcnt = requestcnt - 1
+                if not df.empty:
+                    code = df.index.get_level_values(0)[0]
+                    if len(df) < 100:
+                        logging.warning('len of df less than 100, code: ' + code + ', len ' + str(len(df)))
+                    df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
+                    logging.info('finished save tick, code: ' + code + ', requestcnt: ' + str(requestcnt))
+                    print requestcnt
+    except Exception as e:
+        err = 'Error %s' % e
+        logging.info('Error %s' % e)
     global g_flag
     g_flag += 2
-    logging.info('finish io. ')
+    logging.info('finish io. ' + str(g_flag))
 
 def requesttick(q1, q2):
     while True:
-        if not q1.empty():
-            s = q1.get()
-            df = request_history_tick(s[0], s[1])
-            if df.empty():
-                logging.info('empty tick, code: ' + s[0])
-            q2.put(df)
+        try:
+            if not q1.empty():
+                s = q1.get()
+                df = request_history_tick(s[0], s[1])
+                if df.empty:
+                    logging.info('empty tick, code: ' + s[0])
+                q2.put(df)
 
-        else:
-            if g_flag >= 1:
-                logging.info('finish request. '+ str(threading.currentThread()))
-                return
+            else:
+                if g_flag >= 1:
+                    logging.info('finish request. ' + str(g_flag) + ' ' + str(threading.currentThread()))
+                    return
+        except Exception as e:
+            logging.info('exception: ' + str(e) + ' ' + str(threading.currentThread()))
+
 
 if __name__=="__main__":
 
@@ -154,10 +161,10 @@ if __name__=="__main__":
     threads.append(t3)
     t4 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
     threads.append(t4)
-    t5 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
-    threads.append(t5)
-    t6 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
-    threads.append(t6)
+    #t5 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
+    #threads.append(t5)
+    #t6 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
+    #threads.append(t6)
 
     for t in threads:
         t.setDaemon(True)

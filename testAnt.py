@@ -269,6 +269,7 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
 
     if len(dfs) > 0:
         df = pd.concat(dfs)
+        df.replace(to_replace='', value=0, inplace=True)
         df.adate = pd.to_datetime(df.adate)
         df.xdate = pd.to_datetime(df.xdate)
         df.rdate = pd.to_datetime(df.rdate)
@@ -287,6 +288,7 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
 
     if len(dfs1) > 0:
         df1 = pd.concat(dfs1)
+        df1.replace(to_replace='', value=0, inplace=True)
         df1.adate = pd.to_datetime(df1.adate)
         df1.xdate = pd.to_datetime(df1.xdate)
         df1.rdate = pd.to_datetime(df1.rdate)
@@ -353,6 +355,7 @@ def get_stock_change(code, brsStore, timeout=5):
     if len(dfs) > 0:
         df = pd.DataFrame()
         df = pd.concat(dfs)
+        df.replace(to_replace='', value=0, inplace=True)
         df.adate = pd.to_datetime(df.adate)
         df.xdate = pd.to_datetime(df.xdate)
         df.totalshare = df.totalshare.astype(np.float64)
