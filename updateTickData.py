@@ -153,7 +153,7 @@ if __name__=="__main__":
     backbone2 = Queue.Queue()
     threads = []
     t1 = threading.Thread(target=IO, args=(all, backbone1, backbone2))
-    threads.append(t1)
+    #threads.append(t1)
 
     t2 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
     threads.append(t2)
@@ -169,8 +169,9 @@ if __name__=="__main__":
     for t in threads:
         t.setDaemon(True)
         t.start()
-    t.join()
 
+    t1.start()
+    t1.join()
     logging.info('all done. ')
 
 

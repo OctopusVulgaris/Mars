@@ -96,7 +96,7 @@ if __name__=="__main__":
     t4 = threading.Thread(target=setopen, args=(backbone1, backbone2, all))
     t5 = threading.Thread(target=setopen, args=(backbone1, backbone2, all))
 
-    threads.append(t1)
+    #threads.append(t1)
     threads.append(t2)
     threads.append(t3)
     threads.append(t4)
@@ -105,7 +105,9 @@ if __name__=="__main__":
     for t in threads:
         t.setDaemon(True)
         t.start()
-    t.join()
+    #t.join()
+    t1.start()
+    t1.join()
 
     osa = pd.read_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf')
     osa = osa.sort_index()
