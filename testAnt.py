@@ -446,6 +446,13 @@ def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1997,1,2
         data = data.sort_index()
         daykStore.append('dayk', data, min_itemsize={'values': 30})
 
+def get_fundmental_data_163(code, timeout=3):
+    url = r'http://quotes.money.163.com/service/zycwzb_' + code + '.html?type=report'
+
+    r = requests.get(url, timeout=timeout)
+    data = pd.read_csv(StringIO(r.content), encoding='gbk').T.dropna()
+    data.to_csv('D:\\HDF5_Data\\fundmental\\'+code+'.csv', header=False, encoding='gbk')
+
 def get_full_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='w')
     target_list = getcodelist()
@@ -743,6 +750,30 @@ def close2PrevClose(x):
     r[1:] = x.ix[:len(x) - 1].close.values
     return r.reset_index(level=0, drop=True)
 
+def getFundmental163(retry=50, pause=1):
+    target_list = getcodelist()
+    llen = len(target_list)
+    cnt = 0
+    itr = target_list.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            for _ in range(retry):
+                try:
+                    get_fundmental_data_163(row.code)
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    time.sleep(pause)
+                else:
+                    logging.info('get fundmental for %s successfully' % row.code)
+                    cnt += 1
+                    print 'retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
+                    break
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
 def cumprod(x):
     return x.cumprod()
 
@@ -825,6 +856,7 @@ if __name__=="__main__":
         updateindexlist()
         get_all_full_index_daily()
         updatestocklist(5, 5)
+        getFundmental163()
         get_bonus_ri_sc()
         get_full_daily_data_163()
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')

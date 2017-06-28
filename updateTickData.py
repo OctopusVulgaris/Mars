@@ -37,7 +37,7 @@ def request_history_tick(code, datelist):
         retry = 0
         try:
             while (succeeded == False) and (retry < 10):
-                tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=10)
+                tick = ts.get_tick_data(code, date=str(cur_day.date()), retry_count=10, src='tt')
                 if not tick.empty:
                     if tick.time[0] != 'alert("当天没有数据");':
                         tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
@@ -54,9 +54,9 @@ def request_history_tick(code, datelist):
                         #logging.info('save to tick_tbl_' + code + ' on '+ str(cur_day) + ' thread ' + str(threading.currentThread()))
                 succeeded = True
 
-        except Exception:
+        except Exception as e:
             retry += 1
-            logging.error(str(code) + ' request tick;; retry ' + str(retry) + ' on ' + str(cur_day))
+            logging.error(str(code) + ' request tick;; retry ' + str(retry) + ' on ' + str(cur_day) + '%s' % e)
 
     logging.info('finished request tick, code: ' + code)
     if not df.empty:

@@ -25,6 +25,8 @@ def readandsave(q1, q2, codelist):
     savecnt = 0
     try:
         for code in codelist:
+            if not os.path.exists('d:\\HDF5_Data\\tick\\tick_tbl_'+code):
+                continue
             onedaytick = pd.read_hdf('d:\\HDF5_Data\\tick\\tick_tbl_'+code, where='date > \'' + getlastdate(code) + '\'')
             logging.info('finished read tick, code: ' + code)
             if onedaytick.empty:
