@@ -25,7 +25,7 @@ to_be_sell = []
 cash = 100000.0
 poolsize = 300
 
-st_pattern = r'^S|^\*|退市|ST'
+st_pattern = r'^S|^\*|退|ST'
 ashare_pattern = r'^0|^3|^6'
 
 
@@ -343,6 +343,8 @@ def morningTrade():
 
     try:
         transactions = transactions.loc[datetime.date.today()]
+        transactions.type.replace([1, 2, 3, 4], 'sell', inplace=True)
+        transactions.type.replace(0, 'buy', inplace=True)
     except KeyError:
         sendmail("no transaction today...")
     else:

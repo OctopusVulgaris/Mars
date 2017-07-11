@@ -37,16 +37,17 @@ def readandsave(q1, q2, codelist):
             while not q2.empty():
                 r = q2.get()
                 r.to_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', format='t', append=True, complib='blosc', mode='a')
-                logging.info('finished save tick, code: ' + r.index.get_level_values(0)[0])
+
                 savecnt = savecnt - 1
+                logging.info('finished save tick, savecnt:' + str(savecnt))
 
         while savecnt > 0:
             if not q2.empty():
                 r = q2.get()
                 r.to_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', format='t', append=True, complib='blosc', mode='a')
-                logging.info('finished save tick, code: ' + r.index.get_level_values(0)[0])
+
                 savecnt = savecnt - 1
-                print savecnt
+                logging.info('finished save tick, savecnt:' + str(savecnt))
     except Exception as e:
         err = 'Error %s' % e
         logging.info('Error %s' % e)

@@ -84,7 +84,7 @@ def request_test_tick(code, engine, start_date, end_date):
     while cur_day != end_date:
         try:
             #logging.info('cur_day: ' + str(cur_day) + str(threading.currentThread()))
-            tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=500)
+            tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=500, src='tt')
             if not tick.empty:
                 if tick.time[0] != 'alert("当天没有数据");':
                     tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])

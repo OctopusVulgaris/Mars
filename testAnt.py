@@ -746,8 +746,8 @@ def get_today_all_from_sina(retry=50, pause=10):
 
 def close2PrevClose(x):
     r = pd.Series(0, x.index)
-    x.close.replace('0', inplace=True)
-    r[1:] = x.ix[:len(x) - 1].close.values
+    x.close.replace(0, inplace=True)
+    r[1:] = x.iloc[:len(x) - 1].close.values
     return r.reset_index(level=0, drop=True)
 
 def getFundmental163(retry=50, pause=1):
@@ -807,7 +807,7 @@ def calcFullRatio(daydata):
     bi = bi.fillna(0)
     sPclose = df.groupby(level=0).apply(close2PrevClose)
     bi['pclose'] = sPclose.reindex(bi.index, method='pad')
-    bi['b'] = (bi.pclose - bi.riprice) / bi.riprice
+    #bi['b'] = (bi.pclose - bi.riprice) / bi.riprice
     #bi = bi[bi.b > 0.05]
     print datetime.datetime.now() - t1
 
