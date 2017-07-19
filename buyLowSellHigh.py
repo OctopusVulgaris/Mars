@@ -342,9 +342,8 @@ def morningTrade():
     transactions = pd.read_csv('d:\\tradelog\\transaction_real_c.csv', header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
 
     try:
+        transactions.type.replace({0:'buy', 1:'sell out pool', 2:'sell open high', 3:'sell fallback', 4:'sell st flag'}, inplace=True)
         transactions = transactions.loc[datetime.date.today()]
-        transactions.type.replace([1, 2, 3, 4], 'sell', inplace=True)
-        transactions.type.replace(0, 'buy', inplace=True)
     except KeyError:
         sendmail("no transaction today...")
     else:
