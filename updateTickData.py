@@ -1,16 +1,15 @@
 # -*- coding:utf-8 -*-
 
 import threading
-
 import datetime
 import tushare as ts
-import Queue
+import queue
 import time
 import logging
 import pandas as pd
 import sys
 import os
-
+import multiprocessing as mp
 
 
 g_flag = 0
@@ -58,7 +57,7 @@ def request_history_tick(code, datelist):
             retry += 1
             logging.error(str(code) + ' request tick;; retry ' + str(retry) + ' on ' + str(cur_day) + '%s' % e)
 
-    logging.info('finished request tick, code: ' + code)
+    #logging.info('finished request tick, code: ' + code)
     if not df.empty:
         df = df.set_index(['code', 'date'])
         #df.sort_index()
@@ -66,9 +65,19 @@ def request_history_tick(code, datelist):
 
 
 def IO(codelist, q1, q2):
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='d:/tradelog/updateTickData.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
+
     a = codelist.index.drop_duplicates()
     requestcnt = 0
     try:
+
         for code in a.values:
             datelist = codelist.loc[code:code].date
             if len(datelist) < 1:
@@ -108,7 +117,9 @@ def IO(codelist, q1, q2):
                         logging.warning('len of df less than 100, code: ' + code + ', len ' + str(len(df)))
                     df.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
                     logging.info('finished save tick, code: ' + code + ', requestcnt: ' + str(requestcnt))
-                    print requestcnt
+                    print (requestcnt)
+            else:
+                time.sleep(10)
     except Exception as e:
         err = 'Error %s' % e
         logging.info('Error %s' % e)
@@ -117,10 +128,20 @@ def IO(codelist, q1, q2):
     logging.info('finish io. ' + str(g_flag))
 
 def requesttick(q1, q2):
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='d:/tradelog/updateTickData.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
     while True:
         try:
             if not q1.empty():
+
                 s = q1.get()
+
                 df = request_history_tick(s[0], s[1])
                 if df.empty:
                     logging.info('empty tick, code: ' + s[0])
@@ -130,6 +151,8 @@ def requesttick(q1, q2):
                 if g_flag >= 1:
                     logging.info('finish request. ' + str(g_flag) + ' ' + str(threading.currentThread()))
                     return
+                else:
+                    time.sleep(10)
         except Exception as e:
             logging.info('exception: ' + str(e) + ' ' + str(threading.currentThread()))
 
@@ -145,33 +168,27 @@ if __name__=="__main__":
     stdout_handler = logging.StreamHandler(sys.stdout)
     log.addHandler(stdout_handler)
 
-    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-6-1\'')
+    mp.set_start_method('spawn')
+    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-9-1\'')
     all = all[all.open > 0]
     all = all.reset_index(level=1)
     logging.info('finish read. ')
-    backbone1 = Queue.Queue()
-    backbone2 = Queue.Queue()
-    threads = []
-    t1 = threading.Thread(target=IO, args=(all, backbone1, backbone2))
+    backbone1 = mp.Queue()
+    backbone2 = mp.Queue()
+    processes = []
+    t1 = mp.Process(target=IO, args=(all, backbone1, backbone2,))
     #threads.append(t1)
 
-    t2 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
-    threads.append(t2)
-    t3 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
-    threads.append(t3)
-    t4 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
-    threads.append(t4)
-    #t5 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
-    #threads.append(t5)
-    #t6 = threading.Thread(target=requesttick, args=(backbone1, backbone2))
-    #threads.append(t6)
 
-    for t in threads:
-        t.setDaemon(True)
+    for i in range(15):
+        t = mp.Process(target=requesttick, args=(backbone1, backbone2,))
+        t.daemon = True
         t.start()
+        processes.append(t)
 
     t1.start()
     t1.join()
+
     logging.info('all done. ')
 
 

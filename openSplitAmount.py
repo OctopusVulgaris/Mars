@@ -1,15 +1,15 @@
 # -*- coding:utf-8 -*-
 import pandas as pd
 import numpy as np
-import Queue
+import queue
 import time
 import logging
 import sys
 import threading
 import os
 
-backbone1 = Queue.Queue()
-backbone2 = Queue.Queue()
+backbone1 = queue.queue()
+backbone2 = queue.queue()
 g_flag = 0
 
 def getlastdate(code):

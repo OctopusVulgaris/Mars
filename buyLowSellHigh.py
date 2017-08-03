@@ -5,16 +5,16 @@ import datetime
 import numpy as np
 import ctypes as ct
 import time
-import talib
+#import talib
 import argparse
 from utility import round_series, get_realtime_all_st
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
 import socket
-import ConfigParser
 import logging
 import sys
+import configparser
 
 
 max_holdings = 10
@@ -108,19 +108,19 @@ def calc(x):
 
 def ComputeCustomIndex(df):
     #t1 = datetime.datetime.now()
-    #df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day')
     #df = df[df.code.str.contains(ashare_pattern)]
 
-    groupbydate = df.groupby(level=0)
-    myindex = pd.DataFrame()
-    myindex['trdprc'] = groupbydate.apply(GetTotalCapIndex)
-    myindex['ma9'] = talib.MA(myindex.trdprc.values, timeperiod=9)
-    myindex['ma12'] = talib.MA(myindex.trdprc.values, timeperiod=12)
-    myindex['ma60'] = talib.MA(myindex.trdprc.values, timeperiod=60)
-    myindex['ma256'] = talib.MA(myindex.trdprc.values, timeperiod=256)
-    myindex = myindex.fillna(0)
+    #groupbydate = df.groupby(level=0)
+    #myindex = pd.DataFrame()
+    #myindex['trdprc'] = groupbydate.apply(GetTotalCapIndex)
+    #myindex['ma9'] = talib.MA(myindex.trdprc.values, timeperiod=9)
+    #myindex['ma12'] = talib.MA(myindex.trdprc.values, timeperiod=12)
+    #myindex['ma60'] = talib.MA(myindex.trdprc.values, timeperiod=60)
+   # myindex['ma256'] = talib.MA(myindex.trdprc.values, timeperiod=256)
+    #myindex = myindex.fillna(0)
 
-    myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='t', complib='blosc')
+   # myindex.to_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day', mode='w', format='t', complib='blosc')
 
 
 def prepareMediateFile():
@@ -351,7 +351,7 @@ def morningTrade():
     logging.info('finished...' + str(datetime.datetime.now()))
 
 def sendmail(log):
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
     config.read('d:\\tradelog\\mail.ini')
 
     fromaddr = config.get('mail', 'from')
@@ -368,7 +368,7 @@ def sendmail(log):
         sm.login(fromaddr, password)
         sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
         sm.quit()
-    except Exception, e:
+    except Exception as e:
         logging.error(str(e))
 
 def getArgs():

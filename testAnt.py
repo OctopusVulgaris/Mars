@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import requests
 from lxml import etree
-from StringIO import StringIO
+from io import StringIO
 from utility import round_series, getcodelist, getindexlist
 import random, string
 import argparse
@@ -30,12 +30,12 @@ def get_one_index_full(code, idxStore, timeout=60):
         url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;VOTURNOVER;VATURNOVER'
 
     r = requests.get(url, timeout=timeout)
-    data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期', parse_dates=True)
+    data = pd.read_csv(StringIO(r.content.decode(encoding='gbk')), index_col=u'日期', parse_dates=True)
     data.index.names = ['date']
     if not data.empty:
         data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','vol','amo']
         data['code'] = code
-        data.name = data.name.str.encode('utf-8')
+        #data.name = data.name.str.encode('utf-8')
         data['close'] = data['close'].apply(convertNone)
         data['high'] = data['high'].apply(convertNone)
         data['low'] = data['low'].apply(convertNone)
@@ -51,6 +51,7 @@ def get_one_index_full(code, idxStore, timeout=60):
 def get_all_full_index_daily(retry=50, pause=10):
     idxStore = pd.HDFStore('D:/HDF5_Data/indexdaily.h5', complib='blosc', mode='w')
     target_list = getindexlist()
+
     target_list.sort_values('code', inplace=True)
     for code in target_list.code.values:
         for _ in range(retry):
@@ -76,8 +77,8 @@ def updateindexlist():
     all = pd.concat([sh, sz])
 
     if not all.empty:
-        all.CODE = all.CODE.str.encode('utf-8')
-        all.NAME = all.NAME.str.encode('utf-8')
+        #all.CODE = all.CODE.str.encode('utf-8')
+        #all.NAME = all.NAME.str.encode('utf-8')
         all.CODE = all.CODE.str.slice(1)
         all = all[['CODE', 'NAME']].reset_index(drop=True)
         all.columns = ['code', 'name']
@@ -117,7 +118,7 @@ def updatestocklist(retry_count, pause):
     logging.info('start retrieving stock list...' + str(datetime.datetime.now()))
     for _ in range(retry_count):
         dfs = []
-        print time.clock()
+        print (time.clock())
         try:
             # get info of shen zheng
             r = requests.get(sz_onboard_url)  # , proxies=proxies)
@@ -125,8 +126,8 @@ def updatestocklist(retry_count, pause):
             if sz_on:
                 df2 = sz_on[0].iloc[1:, [0, 1]]
                 df2.columns = ['code', 'name']
-                df2.code = df2.code.str.encode('utf-8')
-                df2.name = df2.name.str.encode('utf-8')
+                #df2.code = df2.code.str.encode('utf-8')
+                #df2.name = df2.name.str.encode('utf-8')
                 df2['status'] = 1
                 dfs.append(df2)
 
@@ -135,8 +136,8 @@ def updatestocklist(retry_count, pause):
             if sz_quit_onhold:
                 df2 = sz_quit_onhold[0].iloc[1:, [0, 1]]
                 df2.columns = ['code', 'name']
-                df2.code = df2.code.str.encode('utf-8')
-                df2.name = df2.name.str.encode('utf-8')
+                #df2.code = df2.code.str.encode('utf-8')
+                #df2.name = df2.name.str.encode('utf-8')
                 df2['status'] = 0
                 dfs.append(df2)
 
@@ -145,8 +146,8 @@ def updatestocklist(retry_count, pause):
             if sz_quit:
                 df2 = sz_quit[0].iloc[1:, [0, 1]]
                 df2.columns = ['code', 'name']
-                df2.code = df2.code.str.encode('utf-8')
-                df2.name = df2.name.str.encode('utf-8')
+                #df2.code = df2.code.str.encode('utf-8')
+                #df2.name = df2.name.str.encode('utf-8')
                 df2['status'] = -1
                 dfs.append(df2)
 
@@ -154,36 +155,36 @@ def updatestocklist(retry_count, pause):
             r = requests.get(sh_onboard_url, headers=header)  # , proxies=proxies,)
             # with open("sh_onboard.xls", "wb") as code:
             #    code.write(r.content)
-            sh_on = pd.read_table(StringIO(r.content), encoding='gbk')
+            sh_on = pd.read_table(StringIO(r.content.decode(encoding='gbk')))
             if not sh_on.empty:
                 df1 = sh_on.iloc[0:, [2, 3]]
                 df1.columns = ['code', 'name']
                 df1.code = df1.code.astype(str)
-                df1.name = df1.name.str.encode('utf-8')
+                #df1.name = df1.name.str.encode('utf-8')
                 df1['status'] = 1
                 dfs.append(df1)
 
             r = requests.get(sh_quit_onhold_url, headers=header)  # , proxies=proxies,)
             # with open("sh_quit_onhold.xls", "wb") as code:
             #    code.write(r.content)
-            sh_onhold = pd.read_table(StringIO(r.content), encoding='gbk')
+            sh_onhold = pd.read_table(StringIO(r.content.decode(encoding='gbk')))
             if not sh_onhold.empty:
                 df1 = sh_onhold.iloc[0:, [0, 1]]
                 df1.columns = ['code', 'name']
                 df1.code = df1.code.astype(str)
-                df1.name = df1.name.str.encode('utf-8')
+                #df1.name = df1.name.str.encode('utf-8')
                 df1['status'] = 0
                 dfs.append(df1)
 
             r = requests.get(sh_quit_url, headers=header)  # , proxies=proxies,)
             # with open("sh_quit.xls", "wb") as code:
             #    code.write(r.content)
-            sh_quit = pd.read_table(StringIO(r.content), encoding='gbk')
+            sh_quit = pd.read_table(StringIO(r.content.decode(encoding='gbk')))
             if not sh_quit.empty:
                 df1 = sh_quit.iloc[0:, [0, 1]]
                 df1.columns = ['code', 'name']
                 df1.code = df1.code.astype(str)
-                df1.name = df1.name.str.encode('utf-8')
+                #df1.name = df1.name.str.encode('utf-8')
                 df1['status'] = -1
                 dfs.append(df1)
         except Exception as e:
@@ -191,7 +192,7 @@ def updatestocklist(retry_count, pause):
             logging.info(err)
             time.sleep(pause)
         else:
-            print time.clock()
+            print (time.clock())
             df = pd.concat(dfs)
             df = df.drop_duplicates(subset='code', keep='last')
             df = df.set_index('code')
@@ -280,7 +281,7 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
         #print df
         key = 'b' + code
         brsStore.append('bonus', df, min_itemsize={'values': 50})
-        logging.info('Info %s has saved bonus' % code)
+        #logging.info('Info %s has saved bonus' % code)
         #df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
     else:
         logging.info('Info %s has empty bonus' % code)
@@ -341,11 +342,11 @@ def get_stock_change(code, brsStore, timeout=5):
                 sinfo['adate'] = '1900-1-1'
             sinfo['reason'] = ''.join(table.xpath('tbody/tr[4]/td[%d]/text()'%col))
             sinfo['totalshare'] = ''.join(table.xpath('tbody/tr[5]/td[%d]/text()'%col))
-            sinfo['totalshare'] = filter(is_digit_or_point, sinfo['totalshare'].encode('utf-8'))
+            sinfo['totalshare'] = sinfo['totalshare'].strip(' -万股')
             sinfo['tradeshare'] = ''.join(table.xpath('tbody/tr[7]/td[%d]/text()'%col))
-            sinfo['tradeshare'] = filter(is_digit_or_point, sinfo['tradeshare'].encode('utf-8'))
+            sinfo['tradeshare'] = sinfo['tradeshare'].strip(' -万股')
             sinfo['limitshare'] = ''.join(table.xpath('tbody/tr[9]/td[%d]/text()'%col))
-            sinfo['limitshare'] = filter(is_digit_or_point, sinfo['limitshare'].encode('utf-8'))
+            sinfo['limitshare'] = sinfo['limitshare'].strip(' -万股')
             sinfo['prevts'] = prev_tradeable_share
             prev_tradeable_share = sinfo['tradeshare']
             #write_stockchange_to_db(sinfo)
@@ -362,7 +363,7 @@ def get_stock_change(code, brsStore, timeout=5):
         df.tradeshare = df.tradeshare.astype(np.float64)
         df.limitshare = df.limitshare.astype(np.float64)
         df.prevts = df.prevts.astype(np.float64)
-        df.reason = df.reason.str.encode('utf-8')
+        df.reason = df.reason.astype(str)
         df['type'] = 'stockchange'
         #print df
         key = 's' + code
@@ -375,13 +376,14 @@ def get_stock_change(code, brsStore, timeout=5):
 def get_bonus_ri_sc(retry=50, pause=1):
     brsStore = pd.HDFStore('D:\\HDF5_Data\\brsInfo.h5', complib='blosc', mode='w')
     target_list = getcodelist()
+
     itr = target_list.itertuples()
     try:
         row = next(itr)
         while row:
             for _ in range(retry):
                 try:
-                    print 'retrieving bonus_and_ri' + row.code
+                    print ('retrieving bonus_and_ri' + row.code)
                     get_bonus_and_ri(row.code, brsStore)
                     pass
                 except Exception as e:
@@ -401,7 +403,7 @@ def get_bonus_ri_sc(retry=50, pause=1):
         while row:
             for _ in range(retry):
                 try:
-                    print 'retrieving stock change' + row.code
+                    print ('retrieving stock change' + row.code)
                     get_stock_change(row.code, brsStore)
                     pass
                 except Exception as e:
@@ -426,7 +428,7 @@ def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1997,1,2
         url = r'http://quotes.money.163.com/service/chddata.html?code=1' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
 
     r = requests.get(url, timeout=timeout)
-    data = pd.read_csv(StringIO(r.content), encoding='gbk', index_col=u'日期', parse_dates=True)
+    data = pd.read_csv(StringIO(r.content.decode(encoding='gbk')), index_col=u'日期', parse_dates=True)
     data.index.names = ['date']
     if not data.empty:
         data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo','totalcap','tradeablecap']
@@ -434,11 +436,10 @@ def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1997,1,2
         data['netchng'] = data['netchng'].apply(convertNone)
         data['pctchng'] = data['pctchng'].apply(convertNone)
         data['turnoverrate'] = data['turnoverrate'].apply(convertNone)
-        data['nameutf'] = 'utf8'
-        data.nameutf = data.name.str.encode('utf-8')
-        del data['name']
-        data.columns = ['code', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng',
-                        'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name']
+        #data['nameutf'] = 'utf8'
+        #data.nameutf = data.name.str.encode('utf-8')
+        #del data['name']
+        #data.columns = ['code', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name']
         data['hfqratio'] = 1.0
         data = data.reset_index()
         data = data.set_index(['code', 'date'])
@@ -450,7 +451,7 @@ def get_fundmental_data_163(code, timeout=3):
     url = r'http://quotes.money.163.com/service/zycwzb_' + code + '.html?type=report'
 
     r = requests.get(url, timeout=timeout)
-    data = pd.read_csv(StringIO(r.content), encoding='gbk').T.dropna()
+    data = pd.read_csv(StringIO(r.content.decode(encoding='gbk'))).T.dropna()
     data.to_csv('D:\\HDF5_Data\\fundmental\\'+code+'.csv', header=False, encoding='gbk')
 
 def get_full_daily_data_163(retry=50, pause=1):
@@ -472,7 +473,7 @@ def get_full_daily_data_163(retry=50, pause=1):
                 else:
                     logging.info('get daily data for %s successfully' % row.code)
                     cnt += 1
-                    print 'retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
+                    print ('retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen))
                     break
             row = next(itr)
     except StopIteration as e:
@@ -483,7 +484,7 @@ def get_delta_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='a')
     tmpdf = daykStore.select('dayk', start=-10000)
     if tmpdf.empty:
-        print 'error, empty dayk'
+        print ('error, empty dayk')
         logging.info('error, empty dayk')
         return
     tmpdf = tmpdf.sort_index(level=1, ascending=True)
@@ -505,7 +506,7 @@ def get_delta_daily_data_163(retry=50, pause=1):
                 else:
                     logging.info('get delta daily data for %s successfully' % row.code)
                     cnt += 1
-                    print 'retrieved delta ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
+                    print ('retrieved delta ' + row.code + ', ' + str(cnt) + ' of ' + str(llen))
                     break
             row = next(itr)
     except StopIteration as e:
@@ -540,7 +541,7 @@ def get_full_daily_data_sina(retry=50, pause=1):
                 else:
                     logging.info('get daily data for %s successfully' % row.code)
                     cnt += 1
-                    print 'retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
+                    print ('retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen))
                     break
             row = next(itr)
     except StopIteration as e:
@@ -581,7 +582,7 @@ def get_delta_daily_data_sina(retry=50, pause=1):
                 else:
                     logging.info('get daily data for %s successfully' % row.code)
                     cnt += 1
-                    print 'retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
+                    print ('retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen))
                     break
             row = next(itr)
     except StopIteration as e:
@@ -642,8 +643,8 @@ def getcninfooneric(code, startyear, endyear):
     r = requests.post("http://www.cninfo.com.cn/cninfo-new/data/download", data=body, headers=headers)
 
     df = pd.DataFrame()
-    if zipfile.is_zipfile(StringIO(r.content)):
-        data = zipfile.ZipFile(StringIO(r.content))
+    if zipfile.is_zipfile(StringIO(r.content.decode())):
+        data = zipfile.ZipFile(StringIO(r.content.decode()))
         data.extractall('d:/cninfo')
         for name in data.namelist():
             csv = pd.read_csv(data.open(StringIO(name).read()), parse_dates=[2], encoding='gbk', dtype={0: str})
@@ -652,9 +653,9 @@ def getcninfooneric(code, startyear, endyear):
             csv.fillna(0, inplace=True)
             csv.columns = ['code', 'name', 'date', 'exchange', 'pclose', 'open', 'volume', 'high', 'low', 'close', 'tradecnt', 'pctchange', 'amount']
 
-            csv.code = csv.code.str.strip().str.encode('utf-8')
-            csv.name = csv.name.str.encode('utf-8')
-            csv.exchange = csv.exchange.str.encode('utf-8')
+            #csv.code = csv.code.str.strip().str.encode('utf-8')
+            #csv.name = csv.name.str.encode('utf-8')
+            #csv.exchange = csv.exchange.str.encode('utf-8')
             csv.amount = csv.amount.astype(float)
             csv.volume = csv.volume.astype(float)
             csv.tradecnt = csv.tradecnt.astype(float)
@@ -720,19 +721,19 @@ def get_today_all_from_sina(retry=50, pause=10):
                   'prevclose', 'close', 'turnoverrate', 'vol']
     df = df.apply(close_check, axis=1)
     df['hfqratio'] = 1
-    df.code = df.code.str.encode('utf-8')
-    df.name = df.name.str.encode('utf-8')
+    #df.code = df.code.str.encode('utf-8')
+    #df.name = df.name.str.encode('utf-8')
 
     #get what missed in sina today all
     target_list = getcodelist()
     target_list = target_list.set_index('code')
-    diff = target_list.index.difference(df.code).str.encode('utf-8')
+    diff = target_list.index.difference(df.code).str#.encode('utf-8')
     missed = utility.get_realtime_all_st(diff.values)
     missed = missed[['name', 'open', 'pre_close', 'price', 'high', 'low', 'volume', 'amount', 'date', 'code']]
     missed.columns = ['name', 'open', 'prevclose', 'close', 'high', 'low', 'vol', 'amo', 'date', 'code']
     missed.amo = missed.amo.astype(np.int64)
-    missed.code = missed.code.str.encode('utf-8')
-    missed.name = missed.name.str.encode('utf-8')
+    #missed.code = missed.code.str.encode('utf-8')
+    #missed.name = missed.name.str.encode('utf-8')
     missed = missed.set_index(['code', 'date'])
 
     date = datetime.date.today()
@@ -768,7 +769,7 @@ def getFundmental163(retry=50, pause=1):
                 else:
                     logging.info('get fundmental for %s successfully' % row.code)
                     cnt += 1
-                    print 'retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen)
+                    print ('retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen))
                     break
             row = next(itr)
     except StopIteration as e:
@@ -809,7 +810,7 @@ def calcFullRatio(daydata):
     bi['pclose'] = sPclose.reindex(bi.index, method='pad')
     #bi['b'] = (bi.pclose - bi.riprice) / bi.riprice
     #bi = bi[bi.b > 0.05]
-    print datetime.datetime.now() - t1
+    print (datetime.datetime.now() - t1)
 
     t2 = datetime.datetime.now()
 
@@ -830,11 +831,11 @@ def calcFullRatio(daydata):
     dayk.put('dayk', df, format='t')
 
     dayk.close()
-    print datetime.datetime.now() - t2
+    print (datetime.datetime.now() - t2)
 
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta', 'cninfofull', 'cninfodelta', 'index'], default='delta', help='download type')
+    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta', 'cninfofull', 'cninfodelta', 'index'], default='full', help='download type')
 
     args=parse.parse_args()
     return vars(args)
@@ -853,10 +854,10 @@ if __name__=="__main__":
     log.addHandler(stdout_handler)
 
     if (type == 'full'):
-        updateindexlist()
-        get_all_full_index_daily()
+        #updateindexlist()
+        #get_all_full_index_daily()
         updatestocklist(5, 5)
-        getFundmental163()
+        #getFundmental163()
         get_bonus_ri_sc()
         get_full_daily_data_163()
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
