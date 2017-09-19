@@ -9,7 +9,7 @@ from utility import round_series, getcodelist, getindexlist
 import random, string
 import argparse
 import utility
-import datetime
+import datetime as dt
 import time
 import logging
 import sys
@@ -17,11 +17,76 @@ import tushare as ts
 import subprocess as sp
 
 ashare_pattern = r'^0|^3|^6'
-
 def reconnect():
     sp.call('rasdial 宽带连接 /disconnect', stdout=sys.stdout)
     time.sleep(1)
     sp.call('rasdial 宽带连接 *63530620 040731', stdout=sys.stdout)
+
+report_date = ['1990-03-31', '1990-06-30', '1990-09-30', '1990-12-31',
+               '1991-03-31', '1991-06-30', '1991-09-30', '1991-12-31',
+               '1992-03-31', '1992-06-30', '1992-09-30', '1992-12-31',
+               '1993-03-31', '1993-06-30', '1993-09-30', '1993-12-31',
+               '1994-03-31', '1994-06-30', '1994-09-30', '1994-12-31',
+               '1995-03-31', '1995-06-30', '1995-09-30', '1995-12-31',
+               '1996-03-31', '1996-06-30', '1996-09-30', '1996-12-31',
+               '1997-03-31', '1997-06-30', '1997-09-30', '1997-12-31',
+               '1998-03-31', '1998-06-30', '1998-09-30', '1998-12-31',
+               '1999-03-31', '1999-06-30', '1999-09-30', '1999-12-31',
+               '2000-03-31', '2000-06-30', '2000-09-30', '2000-12-31',
+               '2001-03-31', '2001-06-30', '2001-09-30', '2001-12-31',
+               '2002-03-31', '2002-06-30', '2002-09-30', '2002-12-31',
+               '2003-03-31', '2003-06-30', '2003-09-30', '2003-12-31',
+               '2004-03-31', '2004-06-30', '2004-09-30', '2004-12-31',
+               '2005-03-31', '2005-06-30', '2005-09-30', '2005-12-31',
+               '2006-03-31', '2006-06-30', '2006-09-30', '2006-12-31',
+               '2007-03-31', '2007-06-30', '2007-09-30', '2007-12-31',
+               '2008-03-31', '2008-06-30', '2008-09-30', '2008-12-31',
+               '2009-03-31', '2009-06-30', '2009-09-30', '2009-12-31',
+               '2010-03-31', '2010-06-30', '2010-09-30', '2010-12-31',
+               '2011-03-31', '2011-06-30', '2011-09-30', '2011-12-31',
+               '2012-03-31', '2012-06-30', '2012-09-30', '2012-12-31',
+               '2013-03-31', '2013-06-30', '2013-09-30', '2013-12-31',
+               '2014-03-31', '2014-06-30', '2014-09-30', '2014-12-31',
+               '2015-03-31', '2015-06-30', '2015-09-30', '2015-12-31',
+               '2016-03-31', '2016-06-30', '2016-09-30', '2016-12-31',
+               '2017-03-31', '2017-06-30', '2017-09-30', '2017-12-31',
+               '2018-03-31', '2018-06-30', '2018-09-30', '2018-12-31',
+               '2019-03-31', '2019-06-30', '2019-09-30', '2019-12-31',
+               '2020-03-31', '2020-06-30', '2020-09-30', '2020-12-31',
+               '2021-03-31', '2021-06-30', '2021-09-30', '2021-12-31',
+               '2022-03-31', '2022-06-30', '2022-09-30', '2022-12-31',
+               '2023-03-31', '2023-06-30', '2023-09-30', '2023-12-31',
+               '2024-03-31', '2024-06-30', '2024-09-30', '2024-12-31',
+               '2025-03-31', '2025-06-30', '2025-09-30', '2025-12-31',
+               '2026-03-31', '2026-06-30', '2026-09-30', '2026-12-31',
+               '2027-03-31', '2027-06-30', '2027-09-30', '2027-12-31',
+               '2028-03-31', '2028-06-30', '2028-09-30', '2028-12-31',
+               '2029-03-31', '2029-06-30', '2029-09-30', '2029-12-31',
+               '2030-03-31', '2030-06-30', '2030-09-30', '2030-12-31',
+               '2031-03-31', '2031-06-30', '2031-09-30', '2031-12-31',
+               '2032-03-31', '2032-06-30', '2032-09-30', '2032-12-31',
+               '2033-03-31', '2033-06-30', '2033-09-30', '2033-12-31',
+               '2034-03-31', '2034-06-30', '2034-09-30', '2034-12-31',
+               '2035-03-31', '2035-06-30', '2035-09-30', '2035-12-31',
+               '2036-03-31', '2036-06-30', '2036-09-30', '2036-12-31',
+               '2037-03-31', '2037-06-30', '2037-09-30', '2037-12-31',
+               '2038-03-31', '2038-06-30', '2038-09-30', '2038-12-31',
+               '2039-03-31', '2039-06-30', '2039-09-30', '2039-12-31',
+               '2040-03-31', '2040-06-30', '2040-09-30', '2040-12-31',
+               '2041-03-31', '2041-06-30', '2041-09-30', '2041-12-31',
+               '2042-03-31', '2042-06-30', '2042-09-30', '2042-12-31',
+               '2043-03-31', '2043-06-30', '2043-09-30', '2043-12-31',
+               '2044-03-31', '2044-06-30', '2044-09-30', '2044-12-31',
+               '2045-03-31', '2045-06-30', '2045-09-30', '2045-12-31',
+               '2046-03-31', '2046-06-30', '2046-09-30', '2046-12-31',
+               '2047-03-31', '2047-06-30', '2047-09-30', '2047-12-31',
+               '2048-03-31', '2048-06-30', '2048-09-30', '2048-12-31',
+               '2049-03-31', '2049-06-30', '2049-09-30', '2049-12-31',
+               '2050-03-31', '2050-06-30', '2050-09-30', '2050-12-31',
+               ]
+rd = pd.DataFrame(index=report_date)
+rd['start'] = report_date
+rd['end'] = report_date[1:]+['2051-03-31']
 
 def convertNone(c):
     if(c == 'None' or c == 'null' or c== 'NULL'):
@@ -89,9 +154,9 @@ def updateindexlist():
         all = all[['CODE', 'NAME']].reset_index(drop=True)
         all.columns = ['code', 'name']
         all.to_hdf('d:/hdf5_data/indexlist.hdf', 'day')
-        logging.info('finished to get index list...' + str(datetime.datetime.now()))
+        logging.info('finished to get index list...' + str(dt.datetime.now()))
     else:
-        logging.info('failed to get list...' + str(datetime.datetime.now()))
+        logging.info('failed to get list...' + str(dt.datetime.now()))
 
 def updatestocklist(retry_count, pause):
     """
@@ -121,7 +186,7 @@ def updatestocklist(retry_count, pause):
         'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.112 Safari/537.36',
         'Upgrade-Insecure-Request': '1'
     }
-    logging.info('start retrieving stock list...' + str(datetime.datetime.now()))
+    logging.info('start retrieving stock list...' + str(dt.datetime.now()))
     for _ in range(retry_count):
         dfs = []
         print (time.clock())
@@ -161,7 +226,7 @@ def updatestocklist(retry_count, pause):
             r = requests.get(sh_onboard_url, headers=header)  # , proxies=proxies,)
             # with open("sh_onboard.xls", "wb") as code:
             #    code.write(r.content)
-            sh_on = pd.read_table(StringIO(r.content.decode(encoding='gbk')))
+            sh_on = pd.read_table(StringIO(r.content.decode(encoding='gbk', errors='ignore')))
             if not sh_on.empty:
                 df1 = sh_on.iloc[0:, [2, 3]]
                 df1.columns = ['code', 'name']
@@ -173,7 +238,7 @@ def updatestocklist(retry_count, pause):
             r = requests.get(sh_quit_onhold_url, headers=header)  # , proxies=proxies,)
             # with open("sh_quit_onhold.xls", "wb") as code:
             #    code.write(r.content)
-            sh_onhold = pd.read_table(StringIO(r.content.decode(encoding='gbk')))
+            sh_onhold = pd.read_table(StringIO(r.content.decode(encoding='gbk', errors='ignore')))
             if not sh_onhold.empty:
                 df1 = sh_onhold.iloc[0:, [0, 1]]
                 df1.columns = ['code', 'name']
@@ -185,7 +250,7 @@ def updatestocklist(retry_count, pause):
             r = requests.get(sh_quit_url, headers=header)  # , proxies=proxies,)
             # with open("sh_quit.xls", "wb") as code:
             #    code.write(r.content)
-            sh_quit = pd.read_table(StringIO(r.content.decode(encoding='gbk')))
+            sh_quit = pd.read_table(StringIO(r.content.decode(encoding='gbk', errors='ignore')))
             if not sh_quit.empty:
                 df1 = sh_quit.iloc[0:, [0, 1]]
                 df1.columns = ['code', 'name']
@@ -205,9 +270,9 @@ def updatestocklist(retry_count, pause):
             df = df[df.index.get_level_values(0).str.contains(ashare_pattern)]
             df = df.sort_index()
             df.to_hdf('d:/HDF5_Data/stocklist.hdf', 'list', mode='w', format='t', complib='blosc')
-            logging.info('finished retrieving ' + str(len(df)) + ' successfully...' + str(datetime.datetime.now()))
+            logging.info('finished retrieving ' + str(len(df)) + ' successfully...' + str(dt.datetime.now()))
             return
-    logging.info('get_stock_list failed...' + str(datetime.datetime.now()))
+    logging.info('get_stock_list failed...' + str(dt.datetime.now()))
 
 def get_bonus_and_ri(code, brsStore, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
@@ -431,9 +496,9 @@ def get_bonus_ri_sc(retry=50, pause=1):
         pass
     brsStore.close()
 
-def get_stock_daily_data_163(code, daykStore, startdate = datetime.date(1997,1,2), timeout=3):
+def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), timeout=3):
     sdate = startdate.strftime('%Y%m%d')
-    enddate = datetime.date.today() - datetime.timedelta(days=1)
+    enddate = dt.date.today() - datetime.timedelta(days=1)
     edate = enddate.strftime('%Y%m%d')
     if code[0] == '6':
         url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
@@ -500,7 +565,7 @@ def get_delta_daily_data_163(retry=50, pause=1):
         logging.info('error, empty dayk')
         return
     tmpdf = tmpdf.sort_index(level=1, ascending=True)
-    startdate = tmpdf.index.get_level_values(1)[-1] + datetime.timedelta(days=1)
+    startdate = tmpdf.index.get_level_values(1)[-1] + dt.timedelta(days=1)
     target_list = getcodelist()
     llen = len(target_list)
     cnt = 0
@@ -574,7 +639,7 @@ def get_delta_daily_data_sina(retry=50, pause=1):
                     startdate = '1997-01-01'
                     df = daykStore.select('dayk', where='code==\'%s\'' %(row.code))
                     if not df.empty:
-                        t = df.index.get_level_values(1)[-1] + datetime.timedelta(days=1)
+                        t = df.index.get_level_values(1)[-1] + dt.timedelta(days=1)
                         startdate = t.strftime('%Y-%m-%d')
 
                     data = ts.get_h_data(row.code, start=startdate, autype='hfq', drop_factor=False)
@@ -683,13 +748,13 @@ def getcninfodaily(type='delta', retry=10, pause=2):
     target_list = getcodelist()
     if type == 'delta':
         mode = 'a'
-        start = str(datetime.date.today().year)
+        start = str(dt.date.today().year)
         end = start
         target_list = target_list[target_list.status > 0]
     else:
         mode = 'w'
         start = '1990'
-        end = str(datetime.date.today().year)
+        end = str(dt.date.today().year)
 
     #daykStore = pd.HDFStore('D:/HDF5_Data/dailydata_cninfo.h5', complib='blosc', mode=mode)
 
@@ -823,7 +888,7 @@ def get_today_all_from_sina(retry=50, pause=10):
     #missed.name = missed.name.str.encode('utf-8')
     missed = missed.set_index(['code', 'date'])
 
-    date = datetime.date.today()
+    date = dt.date.today()
     df['date'] = date
     df = df.set_index(['code', 'date'])
     df = df.combine_first(missed)
@@ -866,7 +931,7 @@ def cumprod(x):
     return x.cumprod()
 
 def calcFullRatio(daydata):
-    t1 = datetime.datetime.now()
+    t1 = dt.datetime.now()
     dayk = pd.HDFStore(daydata, mode='a', complib='blosc')
     brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r', complib='blosc')
     df = dayk.select('dayk')
@@ -897,9 +962,9 @@ def calcFullRatio(daydata):
     bi['pclose'] = sPclose.reindex(bi.index, method='pad')
     #bi['b'] = (bi.pclose - bi.riprice) / bi.riprice
     #bi = bi[bi.b > 0.05]
-    print (datetime.datetime.now() - t1)
+    print (dt.datetime.now() - t1)
 
-    t2 = datetime.datetime.now()
+    t2 = dt.datetime.now()
 
     adjpclose = (bi.pclose - (bi.divpay / 10) + bi.riprice * bi.ri / 10) / (1 + (bi.give + bi.trans) / 10 + bi.ri / 10)
     adjpclose = round_series(adjpclose)
@@ -918,7 +983,59 @@ def calcFullRatio(daydata):
     dayk.put('dayk', df, format='t')
 
     dayk.close()
-    print (datetime.datetime.now() - t2)
+    print (dt.datetime.now() - t2)
+
+def getMax10holder(code, ipodate, tradeable=True, retry=10):
+    datelist = rd[ipodate:dt.datetime.today().strftime('%Y-%m-%d')]
+
+    url=''
+    itr = datelist.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            if tradeable:
+                url = 'http://quotes.money.163.com/service/gdfx.html?ltdate=%s%2C%s&symbol=%s' % (row.end, row.start, code)
+            else:
+                url = 'http://quotes.money.163.com/service/gdfx.html?date=%s%2C%s&symbol=%s' % (row.end, row.start, code)
+
+            for _ in range(retry):
+                try:
+                    r = requests.get(url)
+                    df = pd.read_html(r.content.decode(), skiprows=1)
+                    df.columns = ['name', 'ratio', 'holding', 'delta']
+                    df.ratio = df.ratio.replace('%', '', regex=True).astype('float') / 100
+
+                    pass
+                except Exception as e:
+                    err = 'Error %s' % e
+                    logging.info('Error %s' % e)
+                    reconnect()
+                else:
+                    break
+
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
+
+def getHolder163():
+    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'])
+    all = all.reset_index(level=1)
+    all = all.groupby(level=0).apply(lambda x: x.iloc[0])
+    all = all.reset_index(level=0)
+
+    cnt = 0
+    itr = all.itertuples()
+    try:
+        row = next(itr)
+        while row:
+
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
+
+
 
 def getArgs():
     parse=argparse.ArgumentParser()
