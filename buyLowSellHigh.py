@@ -259,7 +259,7 @@ def doProcessing(df, loglevel):
 
 def regressionTest():
     logging.info('reading dayk tmp...' + str(datetime.datetime.now()))
-    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-1\'')
+    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2016-11-11\'')
 
     logging.info('reading open split amount data...' + str(datetime.datetime.now()))
     osa = pd.read_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', where='date > \'2008-1-1\'')

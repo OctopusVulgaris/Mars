@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import requests
 from lxml import etree
-from io import StringIO
+from io import StringIO, BytesIO
 from utility import round_series, getcodelist, getindexlist
 import random, string
 import argparse
@@ -14,8 +14,14 @@ import time
 import logging
 import sys
 import tushare as ts
+import subprocess as sp
 
 ashare_pattern = r'^0|^3|^6'
+
+def reconnect():
+    sp.call('rasdial 宽带连接 /disconnect', stdout=sys.stdout)
+    time.sleep(1)
+    sp.call('rasdial 宽带连接 *63530620 040731', stdout=sys.stdout)
 
 def convertNone(c):
     if(c == 'None' or c == 'null' or c== 'NULL'):
@@ -206,18 +212,19 @@ def updatestocklist(retry_count, pause):
 def get_bonus_and_ri(code, brsStore, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'+ code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
-    ct = content.decode('gbk')
+    ct = content.decode(encoding='gbk', errors='ignore')
     selector = etree.HTML(ct)
     bitems = selector.xpath('//*[@id="sharebonus_1"]/tbody/tr')
     ritems = selector.xpath('//*[@id="sharebonus_2"]/tbody/tr')
     retry = 0
-    while (len(bitems) < 1 or len(ritems) < 1) and retry < 10:
+    while (len(bitems) < 1 or len(ritems) < 1) and retry < 20:
         content = requests.get(url, timeout=timeout).content
         selector = etree.HTML(content)
         bitems = selector.xpath('//*[@id="sharebonus_1"]/tbody/tr')
         ritems = selector.xpath('//*[@id="sharebonus_2"]/tbody/tr')
         retry += 1
         logging.info('Info retrying %d" bonus' % retry)
+        reconnect()
     dfs = []
     dfs1 = []
     for item in bitems:
@@ -316,16 +323,17 @@ def is_digit_or_point(c):
 def get_stock_change(code, brsStore, timeout=5):
     url = r'http://vip.stock.finance.sina.com.cn/corp/go.php/vCI_StockStructure/stockid/' + code + r'.phtml'
     content = requests.get(url, timeout=timeout).content
-    ct = content.decode('gbk')
+    ct = content.decode(encoding='gbk', errors='ignore')
     selector = etree.HTML(ct)
     tables = selector.xpath('//*[@id="con02-1"]/table')
     retry = 0
-    while len(tables) < 1 and retry < 10:
+    while len(tables) < 1 and retry < 20:
         content = requests.get(url, timeout=timeout).content
         selector = etree.HTML(content)
         tables = selector.xpath('//*[@id="con02-1"]/table')
         retry += 1
         logging.info('Info retrying %d" stock change' % retry)
+        reconnect()
 
     prev_tradeable_share = 0.0
     dfs = []
@@ -377,6 +385,8 @@ def get_bonus_ri_sc(retry=50, pause=1):
     brsStore = pd.HDFStore('D:\\HDF5_Data\\brsInfo.h5', complib='blosc', mode='w')
     target_list = getcodelist()
 
+    size = len(target_list)
+    cnt = 0
     itr = target_list.itertuples()
     try:
         row = next(itr)
@@ -389,14 +399,16 @@ def get_bonus_ri_sc(retry=50, pause=1):
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
-                    time.sleep(pause)
+                    reconnect()
                 else:
-                    logging.info('get today\'s bonus_and_ri data for %s successfully' % row.code)
+                    cnt+=1
+                    logging.info('get today\'s bonus_and_ri data for %s successfully, %d of %d' % (row.code, cnt, size))
                     break
             row = next(itr)
     except StopIteration as e:
         pass
 
+    cnt = 0
     itr = target_list.itertuples()
     try:
         row = next(itr)
@@ -409,9 +421,10 @@ def get_bonus_ri_sc(retry=50, pause=1):
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
-                    time.sleep(pause)
+                    reconnect()
                 else:
-                    logging.info('get today\'s stock change data for %s successfully' % row.code)
+                    cnt+=1
+                    logging.info('get today\'s stock change data for %s successfully, %d of %d' % (row.code, cnt, size))
                     break
             row = next(itr)
     except StopIteration as e:
@@ -457,7 +470,7 @@ def get_fundmental_data_163(code, timeout=3):
 def get_full_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='w')
     target_list = getcodelist()
-    llen = len(target_list)
+    size = len(target_list)
     cnt = 0
     itr = target_list.itertuples()
     try:
@@ -469,11 +482,10 @@ def get_full_daily_data_163(retry=50, pause=1):
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
-                    time.sleep(pause)
+                    reconnect()
                 else:
-                    logging.info('get daily data for %s successfully' % row.code)
                     cnt += 1
-                    print ('retrieved ' + row.code + ', ' + str(cnt) + ' of ' + str(llen))
+                    logging.info('get daily data for %s successfully, %d of %d' % (row.code, cnt, size))
                     break
             row = next(itr)
     except StopIteration as e:
@@ -596,7 +608,7 @@ def random_str(randomlength=8):
     random.shuffle(a)
     return ''.join(a[:randomlength])
 
-def getcninfooneric(code, startyear, endyear):
+def getcninfooneric(code, startyear, endyear, type):
     if code[0] == '6':
         exchange = 'sh'
     else:
@@ -605,14 +617,14 @@ def getcninfooneric(code, startyear, endyear):
     BOUNDARY = "----WebKitFormBoundary" + random_str(16)
     fields = [['K_code', ''],
          ['market', exchange],
-         ['type', 'hq'],
+         ['type', type],
          ['code', code],
          ['orgid', 'gs' + exchange + code],
          ['minYear', startyear],
          ['maxYear', endyear],
          ['hq_code', code],
          ['hq_k_code', ''],
-         ['cw_code', ''],
+         ['cw_code', code],
          ['cw_k_code', '']]
     CRLF = '\r\n'
     L = []
@@ -643,9 +655,12 @@ def getcninfooneric(code, startyear, endyear):
     r = requests.post("http://www.cninfo.com.cn/cninfo-new/data/download", data=body, headers=headers)
 
     df = pd.DataFrame()
-    if zipfile.is_zipfile(StringIO(r.content.decode())):
-        data = zipfile.ZipFile(StringIO(r.content.decode()))
+    if zipfile.is_zipfile(BytesIO(r.content)):
+        data = zipfile.ZipFile(BytesIO(r.content))
         data.extractall('d:/cninfo')
+        return len(data.namelist())
+    return 0
+    '''
         for name in data.namelist():
             csv = pd.read_csv(data.open(StringIO(name).read()), parse_dates=[2], encoding='gbk', dtype={0: str})
             if len(csv) == 1:
@@ -662,39 +677,111 @@ def getcninfooneric(code, startyear, endyear):
 
             df = df.append(csv)
     return df
+    '''
 
-def getcninfodaily(type='delta', retry=50, pause=2):
+def getcninfodaily(type='delta', retry=10, pause=2):
+    target_list = getcodelist()
     if type == 'delta':
         mode = 'a'
         start = str(datetime.date.today().year)
         end = start
+        target_list = target_list[target_list.status > 0]
     else:
         mode = 'w'
         start = '1990'
-        end = str(datetime.date.today().year - 1)
+        end = str(datetime.date.today().year)
 
-    daykStore = pd.HDFStore('D:/HDF5_Data/dailydata_cninfo.h5', complib='blosc', mode=mode)
-    target_list = getcodelist()
-    target_list = target_list[target_list.status > 0]
+    #daykStore = pd.HDFStore('D:/HDF5_Data/dailydata_cninfo.h5', complib='blosc', mode=mode)
+
     llen = len(target_list)
     cnt = 0
     for code in target_list.code.values:
         for _ in range(retry):
-            time.sleep(pause)
+            #time.sleep(pause)
             try:
-                df = getcninfooneric(code, start, end)
-                if df.empty:
-                    logging.info('there is no data for %s' % code)
+                size = getcninfooneric(code, start, end, 'hq')
+                if size < 1:
+                    logging.info('retry hq for %s' % code)
+                    reconnect()
                     continue
                 else:
-                    daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+                    cnt;
+                    #daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
             except Exception as e:
-                logging.info('Error, %s, %s' % (code, e))
+                logging.error('Error, %s, %s' % (code, e))
+                reconnect()
             else:
                 cnt += 1
-                logging.info('get cninfo daily data for %s successfully' % code + ', %d of %d' %(cnt, llen))
+                logging.info('get cninfo hq for %s successfully' % code + ', %d of %d' %(cnt, llen))
                 break
-    daykStore.close()
+            logging.error('failed to get hq data for %s' % code)
+
+    cnt = 0
+    for code in target_list.code.values:
+        for _ in range(retry):
+            # time.sleep(pause)
+            try:
+                size = getcninfooneric(code, start, end, 'lrb')
+                if size < 1:
+                    logging.info('retry lrb for %s' % code)
+                    reconnect()
+                    continue
+                else:
+                    cnt;
+                    # daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+            except Exception as e:
+                logging.error('Error, %s, %s' % (code, e))
+                reconnect()
+            else:
+                cnt += 1
+                logging.info('get cninfo lrb for %s successfully' % code + ', %d of %d' % (cnt, llen))
+                break
+            logging.error('failed to get lrb data for %s' % code)
+
+    cnt = 0
+    for code in target_list.code.values:
+        for _ in range(retry):
+            # time.sleep(pause)
+            try:
+                size = getcninfooneric(code, start, end, 'fzb')
+                if size < 1:
+                    logging.info('retry fzb for %s' % code)
+                    reconnect()
+                    continue
+                else:
+                    cnt;
+                    # daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+            except Exception as e:
+                logging.error('Error, %s, %s' % (code, e))
+                reconnect()
+            else:
+                cnt += 1
+                logging.info('get cninfo fzb for %s successfully' % code + ', %d of %d' % (cnt, llen))
+                break
+            logging.error('failed to get fzb data for %s' % code)
+
+    cnt = 0
+    for code in target_list.code.values:
+        for _ in range(retry):
+            # time.sleep(pause)
+            try:
+                size = getcninfooneric(code, start, end, 'llb')
+                if size < 1:
+                    logging.info('retry llb for %s' % code)
+                    reconnect()
+                    continue
+                else:
+                    cnt;
+                    # daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+            except Exception as e:
+                logging.error('Error, %s, %s' % (code, e))
+                reconnect()
+            else:
+                cnt += 1
+                logging.info('get cninfo llb for %s successfully' % code + ', %d of %d' % (cnt, llen))
+                break
+            logging.error('failed to get llb data for %s' % code)
+    #daykStore.close()
 
 
 def close_check(row):
@@ -875,6 +962,9 @@ if __name__=="__main__":
     elif (type == 'index'):
         updateindexlist()
         get_all_full_index_daily()
+    elif (type == 'cninfofull'):
+        updatestocklist(5, 5)
+        getcninfodaily('full')
 
 
 

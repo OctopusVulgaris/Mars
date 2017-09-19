@@ -7,9 +7,10 @@ import logging
 import sys
 import threading
 import os
+import multiprocessing as mp
 
-backbone1 = queue.queue()
-backbone2 = queue.queue()
+backbone1 = mp.Queue()
+backbone2 = mp.Queue()
 g_flag = 0
 
 def getlastdate(code):
@@ -22,12 +23,22 @@ def getlastdate(code):
     return lastdate
 
 def readandsave(q1, q2, codelist):
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='d:/tradelog/opensplit.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
+
     savecnt = 0
     try:
         for code in codelist:
             if not os.path.exists('d:\\HDF5_Data\\tick\\tick_tbl_'+code):
                 continue
             onedaytick = pd.read_hdf('d:\\HDF5_Data\\tick\\tick_tbl_'+code, where='date > \'' + getlastdate(code) + '\'')
+            onedaytick = onedaytick[onedaytick.time > '09:26:00']
             logging.info('finished read tick, code: ' + code)
             if onedaytick.empty:
                 continue
@@ -85,28 +96,18 @@ if __name__=="__main__":
     stdout_handler = logging.StreamHandler(sys.stdout)
     log.addHandler(stdout_handler)
 
-    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2006-1-1\'')
+    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-9-1\'')
     all = all[all.open > 0]
     all = all.sort_index()
     codelist = all.index.get_level_values(0).to_series().drop_duplicates().get_values()
     logging.info('codelist len: ' + str(len(codelist)))
 
-    threads = []
-    t1 = threading.Thread(target=readandsave, args=(backbone1, backbone2, codelist))
+    processes = []
+    t1 = mp.Process(target=readandsave, args=(backbone1, backbone2, codelist))
 
-    t2 = threading.Thread(target=setopen, args=(backbone1, backbone2, all))
-    t3 = threading.Thread(target=setopen, args=(backbone1, backbone2, all))
-    t4 = threading.Thread(target=setopen, args=(backbone1, backbone2, all))
-    t5 = threading.Thread(target=setopen, args=(backbone1, backbone2, all))
-
-    #threads.append(t1)
-    threads.append(t2)
-    threads.append(t3)
-    threads.append(t4)
-    threads.append(t5)
-
-    for t in threads:
-        t.setDaemon(True)
+    for i in range(5):
+        t = mp.Process(target=setopen, args=(backbone1, backbone2, all))
+        t.daemon = True
         t.start()
     #t.join()
     t1.start()
