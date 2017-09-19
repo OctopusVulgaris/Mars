@@ -85,8 +85,8 @@ report_date = ['1990-03-31', '1990-06-30', '1990-09-30', '1990-12-31',
                '2050-03-31', '2050-06-30', '2050-09-30', '2050-12-31',
                ]
 rd = pd.DataFrame(index=report_date)
-rd['start'] = report_date
-rd['end'] = report_date[1:]+['2051-03-31']
+rd['end'] = report_date
+rd['start'] = ['1989-12-31'] + report_date[:-1]
 
 def convertNone(c):
     if(c == 'None' or c == 'null' or c== 'NULL'):
@@ -989,6 +989,7 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
     datelist = rd[ipodate:dt.datetime.today().strftime('%Y-%m-%d')]
 
     url=''
+    r = []
     itr = datelist.itertuples()
     try:
         row = next(itr)
@@ -1003,8 +1004,10 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
                     r = requests.get(url)
                     df = pd.read_html(r.content.decode(), skiprows=1)
                     df.columns = ['name', 'ratio', 'holding', 'delta']
+                    if len(df) < 2:
+                        break
                     df.ratio = df.ratio.replace('%', '', regex=True).astype('float') / 100
-
+                    r.append([code, row.end, df.ratio.sum(), df.holding.sum()])
                     pass
                 except Exception as e:
                     err = 'Error %s' % e
@@ -1017,6 +1020,8 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
     except StopIteration as e:
         pass
 
+    if len(r) > 0:
+        df = pd.DataFrame(r, columns=['code', 'date', 'ratio', 'holding'])
 
 def getHolder163():
     all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'])
