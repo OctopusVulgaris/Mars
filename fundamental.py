@@ -245,6 +245,87 @@ def get_fd_from_sina(code, timeout=10):
                 except TypeError, e:
                     pass
     #write_fd_to_db(finfoarr)
+    df['epsl4q'] = pd.Series(0.0, index=df.index)
+    df['roel4q'] = pd.Series(0.0, index=df.index)
+    iter = df.itertuples()
+    try:
+        row = next(iter)
+        while row:
+            year = row[0].year
+            month = row[0].month
+            day = row[0].day
+            if(month == 12 and day == 31):
+                epsl4q = row[5]
+                roel4q = row[6]
+            elif(month == 9 and day == 30):
+                lastdec = datetime.datetime(year - 1, 12, 31)
+                lastsep = datetime.datetime(year - 1, 9, 30)
+                try:
+                    ldeps = df.loc[lastdec, 'eps']
+                    ldroe = df.loc[lastdec, 'roe']
+                    lseps = df.loc[lastsep, 'eps']
+                    lsroe = df.loc[lastsep, 'roe']
+                except KeyError, e:
+                    epsl4q = 0
+                    roel4q = 0
+                else:
+                    if(row[5] != '0' and ldeps != '0' and lseps != '0'):
+                        epsl4q = float(row[5]) + float(ldeps) - float(lseps)
+                    else:
+                        epsl4q = 0
+
+                    if(row[6] != '0' and ldroe != '0' and lsroe != '0'):
+                        roel4q = float(row[6]) + float(ldroe) - float(lsroe)
+                    else:
+                        roel4q = 0
+            elif (month == 6 and day == 30):
+                lastdec = datetime.datetime(year - 1, 12, 31)
+                lastjun = datetime.datetime(year - 1, 6, 30)
+                try:
+                    ldeps = df.loc[lastdec, 'eps']
+                    ldroe = df.loc[lastdec, 'roe']
+                    ljeps = df.loc[lastjun, 'eps']
+                    ljroe = df.loc[lastjun, 'roe']
+                except KeyError, e:
+                    epsl4q = 0
+                    roel4q = 0
+                else:
+                    if (row[5] != '0' and ldeps != '0' and ljeps != '0'):
+                        epsl4q = float(row[5]) + float(ldeps) - float(ljeps)
+                    else:
+                        epsl4q = 0
+
+                    if (row[6] != '0' and ldroe != '0' and ljroe != '0'):
+                        roel4q = float(row[6]) + float(ldroe) - float(ljroe)
+                    else:
+                        roel4q = 0
+            elif (month == 3 and day == 31):
+                lastdec = datetime.datetime(year - 1, 12, 31)
+                lastmar = datetime.datetime(year - 1, 3, 31)
+                try:
+                    ldeps = df.loc[lastdec, 'eps']
+                    ldroe = df.loc[lastdec, 'roe']
+                    lmeps = df.loc[lastmar, 'eps']
+                    lmroe = df.loc[lastmar, 'roe']
+                except KeyError, e:
+                    epsl4q = 0
+                    roel4q = 0
+                else:
+                    if (row[5] != '0' and ldeps != '0' and lmeps != '0'):
+                        epsl4q = float(row[5]) + float(ldeps) - float(lmeps)
+                    else:
+                        epsl4q = 0
+
+                    if (row[6] != '0' and ldroe != '0' and lmroe != '0'):
+                        roel4q = float(row[6]) + float(ldroe) - float(lmroe)
+                    else:
+                        roel4q = 0
+
+            df.loc[row[0],'epsl4q'] = epsl4q
+            df.loc[row[0], 'roel4q'] = roel4q
+            row = next(iter)
+    except StopIteration, e:
+        pass
     df.to_sql('fundamental', engine, if_exists='append', dtype={'rdate': Date})
 
 def get_fundamental(retry=50, pause=10):
@@ -279,5 +360,5 @@ if __name__=="__main__":
                         filename='fundamental_log.txt'
                         )
 
-    get_fundamental()
-    #get_fd_from_sina('000504')
+    #get_fundamental()
+    get_fd_from_sina('000034')
