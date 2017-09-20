@@ -1002,9 +1002,11 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
             for _ in range(retry):
                 try:
                     r = requests.get(url, timeout=3)
-                    logging.info('requesting ' + row.end + ' of ' + code)
-                    df = pd.read_html(r.content.decode(), skiprows=1)[0]
+                    #print ('requesting ' + row.end + ' of ' + code)
+                    #print (url)
+                    df = pd.read_html(r.content.decode(), flavor='html5lib')[0]
                     df.columns = ['name', 'ratio', 'holding', 'delta']
+                    #print (df)
                     if len(df) < 2:
                         break
                     df.ratio = df.ratio.replace('%', '', regex=True).astype('float') / 100
