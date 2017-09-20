@@ -4,7 +4,7 @@ import time
 import requests
 import pandas as pd
 from mydownloader import logging
-from StringIO import StringIO
+from io import StringIO
 
 def get_stock_list(retry_count, pause):
     """

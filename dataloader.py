@@ -4,7 +4,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import pandas.io.sql as psql
-import sqlalchemy as sa
+#import sqlalchemy as sa
 import logging
 import time
 import threading
@@ -35,7 +35,7 @@ start_date = '1990-01-01'
 end_date = '2050-01-01'
 fuquan = 'qfq'
 table = code + _DAY + '_' + fuquan
-engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=True)
+#engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres', echo=True)
 #read example
 #dayK1 = pd.read_sql_query(text('SELECT open, high FROM "dayk_table" WHERE date =:date1;'), engine, params={'date1':'2016-01-04'})
 #dayK1 = pd.read_sql_table(table, engine, index_col = 'date')
@@ -87,7 +87,7 @@ def load_daily_data(engine):
         #print tdf
         logging.info("ma ends:"+str(datetime.datetime.now()))
     logging.info("MA Done")
-    print full_df
+    print (full_df)
 
             #full_df['MA_' + str(ma)] = pd.rolling_mean(full_df['close'], ma)
     # for ma in ma_list:

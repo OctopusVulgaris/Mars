@@ -62,67 +62,7 @@ def create_tick_talbe(code):
     conn.close()
 
 
-trade_type_dic = {
-    '买盘' : 1,
-    '卖盘' : -1,
-    '中性盘' : 0
-}
 
-def change_dic(x):
-    if x == '--':
-        return 0
-    else:
-        return x
-
-def request_history_tick(code, datelist):
-
-
-    logging.info('start requesting tick, code: ' + code)
-
-    df = pd.DataFrame()
-    if len(datelist) < 1:
-        return df
-
-    if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
-        tmp = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
-        if not tmp.empty:
-            lastday = tmp.reset_index(level=1).date[-1].date()
-            datelist = datelist[datelist > lastday]
-    if len(datelist) < 1:
-        return df
-
-    for cur_day in datelist:
-        succeeded = False
-        retry = 0
-        try:
-            while (succeeded == False) and (retry < 10):
-                tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=10)
-                if not tick.empty:
-                    if tick.time[0] != 'alert("当天没有数据");':
-                        tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
-                        tick['change'] = tick['change'].apply(change_dic)
-                        tick['code'] = code
-                        tick['date'] = cur_day
-                        #tick = tick.set_index(['code', 'date'])
-                        tick = tick.sort_values('time')
-                        tick.time = pd.to_timedelta(tick.time)
-                        tick.change = tick.change.astype(float)
-                        df = df.append(tick)
-                        #tick['time'] = str(cur_day.date()) + ' '+ tick['time']
-                        #tick.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
-                        #logging.info('save to tick_tbl_' + code + ' on '+ str(cur_day) + ' thread ' + str(threading.currentThread()))
-                succeeded = True
-
-        except Exception:
-
-            retry += 1
-            logging.error(str(code) + ' request tick retry ' + str(retry) + ' on ' + str(cur_day))
-
-    logging.info('finished request tick, code: ' + code)
-    if not df.empty:
-        df = df.set_index(['code', 'date'])
-        df.sort_index()
-    return df
 
 
 def create_test_talbe(code):
@@ -144,7 +84,7 @@ def request_test_tick(code, engine, start_date, end_date):
     while cur_day != end_date:
         try:
             #logging.info('cur_day: ' + str(cur_day) + str(threading.currentThread()))
-            tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=500)
+            tick = ts.get_tick_data(code, date=cur_day.date(), retry_count=500, src='tt')
             if not tick.empty:
                 if tick.time[0] != 'alert("当天没有数据");':
                     tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])

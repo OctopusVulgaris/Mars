@@ -1,49 +1,90 @@
 # -*- coding:utf-8 -*-
+import zipfile
 import pandas as pd
-import sqlalchemy as sa
-import datetime
-import logging
-from dataloader import get_code_list
+import numpy as np
+import os
+import tushare as ts
+import time
+import subprocess as sp
+import sys
 
-def s(x):
-    return x.head(300)
+def reconnect():
+    sp.call('rasdial 宽带连接 /disconnect', stdout=sys.stdout)
+    time.sleep(1)
+    sp.call('rasdial 宽带连接 *63530620 040731', stdout=sys.stdout)
+'''
+def subx(x):
+    return x[1] - x[0]
 
-def get5min():
-    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day')
-    gg = df.groupby(level=0)
-    df = gg.apply(s)
-    df = df[df.buyflag== True]
-    df = df.reset_index(level=1)
-    open = df.open
-    open = open.reset_index()
-    open = open.set_index('date')
-    open = open.loc[:'2016-5-15']
-    open = open.reset_index()
-    engine = sa.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432/postgres')
+df = pd.read_csv('D:\\HDF5_Data\\fundmental\\601198.csv', encoding='gbk', index_col=u'报告日期', parse_dates=True).sort_index()
+a = df.iloc[:,0].groupby(df.index.year).rolling(window=2).apply(subx).reset_index(level=0, drop=True).combine_first(df.iloc[:,0])
+a.rolling(window=4).sum().combine_first(a)
+'''
+trade_type_dic = {
+    '买盘' : 1,
+    '卖盘' : -1,
+    '中性盘' : 0
+}
 
-    tick5min = pd.HDFStore('D:\\HDF5_Data\\tick5min.h5', complib='blosc', mode='w')
-    size = len(open)
-    cnt = 0
-    itr = open.itertuples()
-    try:
-        row = next(itr)
-        while row:
-            t1 = datetime.datetime.now()
-            cnt += 1
-            date = row[1].date()
-            code = row[2]
-            open = row[3]
-            try:
-                sql = 'select price, time, volume, amount from tick_tbl_' + code + ' where time > \'' + str(date) + ' 00:00:00\' and time < \'' + str(date) + ' 09:35:00\''
-                r = pd.read_sql(sql, engine, index_col='time')
-                r['code'] = code
-                r['open'] = open
-                tick5min.append('tick', r)
-                row = next(itr)
-            except Exception:
-                row = next(itr)
-            print 'finish ' + str(cnt) + ' of ' + str(size) + ' in ' + str(datetime.datetime.now() - t1)
-    except StopIteration:
-        pass
+'''
+all = all[all.open > 0]
+grouped = all.groupby(['code', pd.Grouper(freq='1M', level=1)])
+s =grouped.std()
+s['opendelta'] = ((grouped.max()-grouped.min())/grouped.min()).open
+v = grouped.vol.mean()
+vp = v.groupby(level=0).pct_change()
+s.vol = vp
+s = s.dropna()
+r = s[(s.open < 0.1) & (s.opendelta < 0.05) & (s.vol < -0.3)]
 
-get5min()
+'''
+def change_dic(x):
+    if x == '--':
+        return 0
+    else:
+        return x
+
+all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2006-1-1\' and date < \'2016-9-3\'')
+all = all[all.open > 0]
+all = all.reset_index(level=1)
+a = all.index.drop_duplicates()
+for code in a.values:
+    print(code)
+    path = 'D:\\HDF5_Data\\ticksn\\' + code
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    datelist = all.loc[code:code].date
+    if len(datelist) < 1:
+        continue
+
+    cachelist = s = os.listdir(path)
+    if len(cachelist) > 0:
+        datelist = datelist[datelist > cachelist[-1].rstrip('.csv')]
+
+    for cur_day in datelist:
+        succeeded = False
+        retry = 0
+        try:
+            daypath = path + '\\' + str(cur_day.date()) + '.csv'
+
+            #if os.path.exists(daypath):
+            #    continue
+            while not succeeded and (retry < 10):
+                tick = ts.get_tick_data(code, date=str(cur_day.date()), retry_count=2, src='sn')
+                if not tick.empty:
+                    if tick.time[0] != 'alert("当天没有数据");':
+                        tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
+                        tick['change'] = tick['change'].apply(change_dic)
+                        #tick = tick.sort_values('time')
+                        #tick.time = pd.to_timedelta(tick.time)
+                        tick.change = tick.change.astype(float)
+                        tick.to_csv(daypath, index=False)
+                succeeded = True
+
+        except Exception as e:
+            retry += 1
+            reconnect()
+
+
+
