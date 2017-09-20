@@ -989,30 +989,32 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
     datelist = rd[ipodate:dt.datetime.today().strftime('%Y-%m-%d')]
 
     url=''
-    r = []
+    rt = []
     itr = datelist.itertuples()
     try:
         row = next(itr)
         while row:
             if tradeable:
-                url = 'http://quotes.money.163.com/service/gdfx.html?ltdate=%s%2C%s&symbol=%s' % (row.end, row.start, code)
+                url = 'http://quotes.money.163.com/service/gdfx.html?ltdate='+ row.end + '%2C' + row.start + '&symbol=' + code
             else:
-                url = 'http://quotes.money.163.com/service/gdfx.html?date=%s%2C%s&symbol=%s' % (row.end, row.start, code)
+                url = 'http://quotes.money.163.com/service/gdfx.html?date=' + row.end + '%2C' + row.start + '&symbol=' + code
 
             for _ in range(retry):
                 try:
-                    r = requests.get(url)
-                    df = pd.read_html(r.content.decode(), skiprows=1)
+                    r = requests.get(url, timeout=3)
+                    logging.info('requesting ' + row.end + ' of ' + code)
+                    df = pd.read_html(r.content.decode(), skiprows=1)[0]
                     df.columns = ['name', 'ratio', 'holding', 'delta']
                     if len(df) < 2:
                         break
                     df.ratio = df.ratio.replace('%', '', regex=True).astype('float') / 100
-                    r.append([code, row.end, df.ratio.sum(), df.holding.sum()])
+                    rt.append([code, row.end, df.ratio.sum(), df.holding.sum()])
                     pass
                 except Exception as e:
                     err = 'Error %s' % e
-                    logging.info('Error %s' % e)
-                    reconnect()
+                    logging.info(err)
+                    #print (err)
+                    #reconnect()
                 else:
                     break
 
@@ -1020,8 +1022,10 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
     except StopIteration as e:
         pass
 
-    if len(r) > 0:
-        df = pd.DataFrame(r, columns=['code', 'date', 'ratio', 'holding'])
+    if len(rt) > 0:
+        return pd.DataFrame(rt, columns=['code', 'date', 'ratio', 'holding'])
+    else:
+        return pd.DataFrame()
 
 def getHolder163():
     all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'])
@@ -1029,22 +1033,46 @@ def getHolder163():
     all = all.groupby(level=0).apply(lambda x: x.iloc[0])
     all = all.reset_index(level=0)
 
+    total = len(all)
     cnt = 0
+    result = pd.DataFrame()
     itr = all.itertuples()
     try:
         row = next(itr)
         while row:
-
+            df = getMax10holder(row.code, row.date.strftime('%Y-%m-%d'), True)
+            cnt += 1
+            logging.info('finished %s, %d of %d' % (row.code, cnt, total))
+            if len(df) > 0:
+                result += df
             row = next(itr)
     except StopIteration as e:
         pass
 
+    result.to_hdf('d:/HDF5_Data/Max10TradeableHoldings.hdf', 'hold', mode='w', format='f', complib='blosc')
+
+    cnt = 0
+    result = pd.DataFrame()
+    itr = all.itertuples()
+    try:
+        row = next(itr)
+        while row:
+            df = getMax10holder(row.code, row.date.strftime('%Y-%m-%d'), False)
+            cnt += 1
+            logging.info('finished %s, %d of %d' % (row.code, cnt, total))
+            if len(df) > 0:
+                result += df
+            row = next(itr)
+    except StopIteration as e:
+        pass
+
+    result.to_hdf('d:/HDF5_Data/Max10Holdings.hdf', 'hold', mode='w', format='f', complib='blosc')
 
 
 
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta', 'cninfofull', 'cninfodelta', 'index'], default='full', help='download type')
+    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta', 'cninfofull', 'cninfodelta', 'index', '10maxhold'], default='full', help='download type')
 
     args=parse.parse_args()
     return vars(args)
@@ -1087,6 +1115,8 @@ if __name__=="__main__":
     elif (type == 'cninfofull'):
         updatestocklist(5, 5)
         getcninfodaily('full')
+    elif (type == '10maxhold'):
+        getHolder163()
 
 
 
