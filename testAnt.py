@@ -992,8 +992,11 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
                     #print (url)
                     df = pd.read_html(r.content.decode(), flavor='html5lib')[0]
                     df.columns = ['name', 'ratio', 'holding', 'delta']
+                    df['code'] = code
+                    df['date'] = row.end
                     #print (df)
-                    if len(df) < 2:
+                    if len(df) != 10:
+                        logging.info(err)
                         break
                     df.ratio = df.ratio.replace('%', '', regex=True).astype('float') / 100
                     rt.append([code, row.end, df.ratio.sum(), df.holding.sum()])
