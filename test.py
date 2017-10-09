@@ -44,7 +44,7 @@ def change_dic(x):
     else:
         return x
 
-all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2006-1-1\' and date < \'2016-9-3\'')
+all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2012-6-25\' and date < \'2012-6-28\' and code = \'000666\'')
 all = all[all.open > 0]
 all = all.reset_index(level=1)
 a = all.index.drop_duplicates()
@@ -58,7 +58,7 @@ for code in a.values:
     if len(datelist) < 1:
         continue
 
-    cachelist = s = os.listdir(path)
+    cachelist = os.listdir(path)
     if len(cachelist) > 0:
         datelist = datelist[datelist > cachelist[-1].rstrip('.csv')]
 

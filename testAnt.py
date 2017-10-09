@@ -484,7 +484,7 @@ def get_bonus_ri_sc(retry=50, pause=1):
 
 def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), timeout=3):
     sdate = startdate.strftime('%Y%m%d')
-    enddate = dt.date.today() - datetime.timedelta(days=1)
+    enddate = dt.date.today() - dt.timedelta(days=1)
     edate = enddate.strftime('%Y%m%d')
     if code[0] == '6':
         url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'

@@ -6,7 +6,7 @@ import numpy as np
 import re
 
 logging.basicConfig(filename='test_log.txt', level=logging.DEBUG)
-from sqlalchemy import Date, text, DateTime, Integer
+
 
 datepattern = r'\[(\d*\-\d*\-\d*)\]'
 buypattern = r'Buy (\d{6}).* on (.*\d), at (.*) vol (.*) fee (.*) avaCap.*'
@@ -41,7 +41,7 @@ while line:
             line = ifile.readline()
             continue
     except Exception:
-        print m.groups()
+        print (m.groups())
     line = ifile.readline()
 
 ofile.writelines(olines)

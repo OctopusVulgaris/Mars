@@ -182,7 +182,7 @@ def prepareMediateFile():
 
     logging.info('all done...' + str(datetime.datetime.now()))
 
-def initializeholding():
+def initializeholding(type):
 
     initholding = pd.read_csv('d:\\tradelog\\holding_real_c.csv', header=None, parse_dates=True, names=['date', 'code', 'buyprc', 'buyhfqratio', 'vol', 'historyhigh', 'amount', 'cash', 'total'], dtype={'code': np.int64, 'buyprc': np.float64, 'buyhfqratio': np.float64, 'vol': np.int64, 'historyhigh': np.float64, 'amount': np.float64, 'cash': np.float64, 'total': np.float64}, index_col='date')
 
@@ -193,7 +193,7 @@ def initializeholding():
 
     BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
 
-    BLSHdll.setindex.argtypes = [ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_int, ct.c_double, ct.c_double]
+    BLSHdll.setindex.argtypes = [ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_int, ct.c_double, ct.c_double, ct.c_int]
 
     ccode = initholding.code.get_values().ctypes.data_as(ct.c_void_p)
     cbuyprc = initholding.buyprc.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
@@ -202,10 +202,17 @@ def initializeholding():
     chistoryhigh = initholding.historyhigh.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
     camount = initholding.amount.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
 
+    ll = len(initholding)
+    cash = ct.c_double(initholding.cash.get_values()[0])
+    total = ct.c_double(initholding.total.get_values()[0])
+    if type == 0:
+        ll = 0
+        cash = 100000
+        total = 100000
     if initholding.empty:
-        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, len(initholding), ct.c_double(100000.0), ct.c_double(100000.0))
+        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, int(ll), ct.c_double(cash), ct.c_double(total), int(type))
     else:
-        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, len(initholding), ct.c_double(initholding.cash.get_values()[0]), ct.c_double(initholding.total.get_values()[0]))
+        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, int(ll), ct.c_double(cash), ct.c_double(total), int(type))
 
 def doProcessing(df, loglevel):
 
@@ -259,7 +266,7 @@ def doProcessing(df, loglevel):
 
 def regressionTest():
     logging.info('reading dayk tmp...' + str(datetime.datetime.now()))
-    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2016-11-11\'')
+    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-1\'')
 
     logging.info('reading open split amount data...' + str(datetime.datetime.now()))
     osa = pd.read_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', where='date > \'2008-1-1\'')
@@ -273,6 +280,7 @@ def regressionTest():
     #index = index.fillna(0)
     #index = index.loc['2006-1-1':]
 
+    initializeholding(0)
     logging.info('doProcessing...' + str(datetime.datetime.now()))
     doProcessing(df, 1)
     logging.info('finished...' + str(datetime.datetime.now()))
@@ -333,7 +341,7 @@ def morningTrade():
     #index.loc[datetime.date.today()] = index.loc['2050-1-1']
 
     logging.info('initializing holding...' + str(datetime.datetime.now()))
-    initializeholding()
+    initializeholding(1)
 
     logging.info('doProcessing...' + str(datetime.datetime.now()))
     doProcessing(df, 1)

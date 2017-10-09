@@ -39,15 +39,15 @@ a['tr30'] = r.rolling(window=30).mean()
 a['tr60'] = r.rolling(window=60).mean()
 
 r = a.high.groupby(level=0, group_keys=False)
-a['hstd30'] = r.rolling(window=30).std()
-a['hstd60'] = r.rolling(window=60).std()
-a['hstd90'] = r.rolling(window=90).std()
+a['hstd30'] = r.rolling(window=30).std(ddof=0)
+a['hstd60'] = r.rolling(window=60).std(ddof=0)
+a['hstd90'] = r.rolling(window=90).std(ddof=0)
 
 
 r = a.low.groupby(level=0, group_keys=False)
-a['lstd30'] = r.rolling(window=30).std()
-a['lstd60'] = r.rolling(window=60).std()
-a['lstd90'] = r.rolling(window=90).std()
+a['lstd30'] = r.rolling(window=30).std(ddof=0)
+a['lstd60'] = r.rolling(window=60).std(ddof=0)
+a['lstd90'] = r.rolling(window=90).std(ddof=0)
 
 
 a['omean30'] = a.open.groupby(level=0, group_keys=False).rolling(window=30).mean()
@@ -57,45 +57,51 @@ a['lmin30'] = a.low.groupby(level=0, group_keys=False).rolling(window=30).min()
 
 a['lf'] = (a.hmax30 - a.lmin30) / (a.omean30 + a.cmean30) / 2
 
-cp = lambda x: x.prod()
+a['avp'] = (a.open + a.high + a.low + a.close) / 4
+a['avp20'] = a.avp.groupby(level=0, group_keys=False).rolling(window=20).std(ddof=0)
+a['avp30'] = a.avp.groupby(level=0, group_keys=False).rolling(window=30).std(ddof=0)
+a['avp60'] = a.avp.groupby(level=0, group_keys=False).rolling(window=60).std(ddof=0)
+
+a['R'] = a.opct.groupby(level=0).cumprod()
+
+
 
 def calcXdayR(x, days):
     y = x.sort_index(level=1, ascending=False)
-    y = y.rolling(window=days).apply(cp)
-    y.iloc[1:] = y.values[:-1]
+    y = y.rolling(window=days).apply(lambda x: x[0] / x[-1])
     return y.sort_index(level=1, ascending=True)
 
 def calcXdayRmax(x, days):
     y = x.sort_index(level=1, ascending=False)
-    y = y.rolling(window=days).max()
-    y.iloc[1:] = y.values[:-1]
+    y = y.rolling(window=days).apply(lambda x: (x / x[-1]).max())
     return y.sort_index(level=1, ascending=True)
 
 def calcXdayRmin(x, days):
     y = x.sort_index(level=1, ascending=False)
-    y = y.rolling(window=days).min()
-    y.iloc[1:] = y.values[:-1]
+    y = y.rolling(window=days).apply(lambda x: (x / x[-1]).min())
     return y.sort_index(level=1, ascending=True)
 
-r = a.opct.groupby(level=0)
+
+r = a.R.groupby(level=0)
 a['R30'] = r.apply(calcXdayR, days=30)
 a['R60'] = r.apply(calcXdayR, days=60)
 a['R90'] = r.apply(calcXdayR, days=90)
 a['R180'] = r.apply(calcXdayR, days=180)
 a['R270'] = r.apply(calcXdayR, days=270)
 a['R360'] = r.apply(calcXdayR, days=360)
-a['R30max'] = r.apply(calcXdayRmax, days=30)
-a['R60max'] = r.apply(calcXdayRmax, days=60)
-a['R90max'] = r.apply(calcXdayRmax, days=90)
-a['R180max'] = r.apply(calcXdayRmax, days=180)
-a['R270max'] = r.apply(calcXdayRmax, days=270)
-a['R360max'] = r.apply(calcXdayRmax, days=360)
-a['R30min'] = r.apply(calcXdayRmin, days=30)
-a['R60min'] = r.apply(calcXdayRmin, days=60)
-a['R90min'] = r.apply(calcXdayRmin, days=90)
-a['R180min'] = r.apply(calcXdayRmin, days=180)
-a['R270min'] = r.apply(calcXdayRmin, days=270)
-a['R360min'] = r.apply(calcXdayRmin, days=360)
+a['Rmax30'] = r.apply(calcXdayRmax, days=30)
+a['Rmax60'] = r.apply(calcXdayRmax, days=60)
+a['Rmax90'] = r.apply(calcXdayRmax, days=90)
+a['Rmax180'] = r.apply(calcXdayRmax, days=180)
+a['Rmax270'] = r.apply(calcXdayRmax, days=270)
+a['Rmax360'] = r.apply(calcXdayRmax, days=360)
+a['Rmin30'] = r.apply(calcXdayRmin, days=30)
+a['Rmin60'] = r.apply(calcXdayRmin, days=60)
+a['Rmin90'] = r.apply(calcXdayRmin, days=90)
+a['Rmin180'] = r.apply(calcXdayRmin, days=180)
+a['Rmin270'] = r.apply(calcXdayRmin, days=270)
+a['Rmin360'] = r.apply(calcXdayRmin, days=360)
+
 
 b = a[(a.hstd30 < 0.2) & (a.lf < 0.08) & (a.tr30 < -0.6)]
 

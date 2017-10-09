@@ -30,6 +30,7 @@ def request_history_tick(code, datelist):
     logging.info('start requesting tick, code: ' + code)
 
     df = pd.DataFrame()
+    path = 'D:\\HDF5_Data\\ticksn\\' + code
 
     for cur_day in datelist:
         succeeded = False
@@ -37,25 +38,26 @@ def request_history_tick(code, datelist):
         try:
             while (succeeded == False) and (retry < 10):
                 tick = ts.get_tick_data(code, date=str(cur_day.date()), retry_count=10, src='tt')
-                if not tick.empty:
+                if tick is not None and not tick.empty:
                     if tick.time[0] != 'alert("当天没有数据");':
                         tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
                         tick['change'] = tick['change'].apply(change_dic)
+                        tick.change = tick.change.astype(float)
+                        daypath = path + '\\' + str(cur_day.date()) + '.csv'
+                        tick.to_csv(daypath, index=False)
+
                         tick['code'] = code
                         tick['date'] = cur_day
                         #tick = tick.set_index(['code', 'date'])
                         tick = tick.sort_values('time')
                         tick.time = pd.to_timedelta(tick.time)
-                        tick.change = tick.change.astype(float)
+
                         df = df.append(tick)
-                        #tick['time'] = str(cur_day.date()) + ' '+ tick['time']
-                        #tick.to_hdf('d:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', mode='a', format='t', complib='blosc', append=True)
-                        #logging.info('save to tick_tbl_' + code + ' on '+ str(cur_day) + ' thread ' + str(threading.currentThread()))
                 succeeded = True
 
         except Exception as e:
             retry += 1
-            logging.error(str(code) + ' request tick;; retry ' + str(retry) + ' on ' + str(cur_day) + '%s' % e)
+            logging.error(str(code) + ' request tick; retry ' + str(retry) + ' on ' + str(cur_day.date()) + '%s' % e)
 
     #logging.info('finished request tick, code: ' + code)
     if not df.empty:
@@ -79,18 +81,29 @@ def IO(codelist, q1, q2):
     try:
 
         for code in a.values:
+            print(code)
+            path = 'D:\\HDF5_Data\\ticksn\\' + code
+            if not os.path.exists(path):
+                os.makedirs(path)
+
             datelist = codelist.loc[code:code].date
             if len(datelist) < 1:
                 continue
 
+            cachelist = os.listdir(path)
+            if len(cachelist) > 0:
+                datelist = datelist[datelist > cachelist[-1].rstrip('.csv')]
+
+            '''
             if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
                 tmp = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
                 if not tmp.empty:
                     lastday = tmp.reset_index(level=1).date[-1].date()
                     datelist = datelist[datelist > lastday]
-
+            
             if len(datelist) < 1:
                 continue
+            '''
 
             logging.info('finish get datelist, code: ' + code)
             s = [code, datelist]
@@ -169,9 +182,13 @@ if __name__=="__main__":
     log.addHandler(stdout_handler)
 
     mp.set_start_method('spawn')
-    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-9-1\'')
+
+
+    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-9-2\' and code = \'000001\'')
     all = all[all.open > 0]
     all = all.reset_index(level=1)
+    a = all.index.drop_duplicates()
+
     logging.info('finish read. ')
     backbone1 = mp.Queue()
     backbone2 = mp.Queue()
