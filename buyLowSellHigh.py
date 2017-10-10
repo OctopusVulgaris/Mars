@@ -203,8 +203,8 @@ def initializeholding(type):
     camount = initholding.amount.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
 
     ll = len(initholding)
-    cash = ct.c_double(initholding.cash.get_values()[0])
-    total = ct.c_double(initholding.total.get_values()[0])
+    cash = initholding.cash.get_values()[0]
+    total = initholding.total.get_values()[0]
     if type == 0:
         ll = 0
         cash = 100000

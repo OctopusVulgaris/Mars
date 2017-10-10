@@ -38,53 +38,16 @@ s = s.dropna()
 r = s[(s.open < 0.1) & (s.opendelta < 0.05) & (s.vol < -0.3)]
 
 '''
-def change_dic(x):
-    if x == '--':
-        return 0
-    else:
-        return x
 
-all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2012-6-25\' and date < \'2012-6-28\' and code = \'000666\'')
-all = all[all.open > 0]
-all = all.reset_index(level=1)
-a = all.index.drop_duplicates()
-for code in a.values:
-    print(code)
-    path = 'D:\\HDF5_Data\\ticksn\\' + code
-    if not os.path.exists(path):
-        os.makedirs(path)
+ohlc_dict = {
+    'open':'first',
+    'high':'max',
+    'low':'min',
+    'close': 'last',
+    'vol': 'sum',
+    'amo': 'sum'
+}
 
-    datelist = all.loc[code:code].date
-    if len(datelist) < 1:
-        continue
-
-    cachelist = os.listdir(path)
-    if len(cachelist) > 0:
-        datelist = datelist[datelist > cachelist[-1].rstrip('.csv')]
-
-    for cur_day in datelist:
-        succeeded = False
-        retry = 0
-        try:
-            daypath = path + '\\' + str(cur_day.date()) + '.csv'
-
-            #if os.path.exists(daypath):
-            #    continue
-            while not succeeded and (retry < 10):
-                tick = ts.get_tick_data(code, date=str(cur_day.date()), retry_count=2, src='sn')
-                if not tick.empty:
-                    if tick.time[0] != 'alert("当天没有数据");':
-                        tick['type'] = tick['type'].apply(lambda x: trade_type_dic[x])
-                        tick['change'] = tick['change'].apply(change_dic)
-                        #tick = tick.sort_values('time')
-                        #tick.time = pd.to_timedelta(tick.time)
-                        tick.change = tick.change.astype(float)
-                        tick.to_csv(daypath, index=False)
-                succeeded = True
-
-        except Exception as e:
-            retry += 1
-            reconnect()
-
+df.groupby(level=0).resample('W', level=1).apply(ohlc_dict)
 
 
