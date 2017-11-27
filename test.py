@@ -51,3 +51,5 @@ ohlc_dict = {
 df.groupby(level=0).resample('W', level=1).apply(ohlc_dict)
 
 
+
+

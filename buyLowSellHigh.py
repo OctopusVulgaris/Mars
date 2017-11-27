@@ -193,7 +193,7 @@ def initializeholding(type):
 
     BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
 
-    BLSHdll.setindex.argtypes = [ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_int, ct.c_double, ct.c_double, ct.c_int]
+    BLSHdll.initialize.argtypes = [ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_int, ct.c_double, ct.c_double, ct.c_int]
 
     ccode = initholding.code.get_values().ctypes.data_as(ct.c_void_p)
     cbuyprc = initholding.buyprc.get_values().ctypes.data_as(ct.POINTER(ct.c_double))

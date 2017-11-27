@@ -94,6 +94,8 @@ def IO(codelist, q1, q2):
             if len(cachelist) > 0:
                 datelist = datelist[datelist > cachelist[-1].rstrip('.csv')]
 
+            if len(datelist) < 1:
+                continue
             '''
             if os.path.exists('D:\\HDF5_Data\\tick\\tick_tbl_' + code):
                 tmp = pd.read_hdf('D:\\HDF5_Data\\tick\\tick_tbl_' + code, 'tick', start=-1)
@@ -184,7 +186,7 @@ if __name__=="__main__":
     mp.set_start_method('spawn')
 
 
-    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-9-2\' and code = \'000001\'')
+    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'], where='date > \'2016-9-2\'')
     all = all[all.open > 0]
     all = all.reset_index(level=1)
     a = all.index.drop_duplicates()
