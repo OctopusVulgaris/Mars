@@ -48,7 +48,32 @@ ohlc_dict = {
     'amo': 'sum'
 }
 
-df.groupby(level=0).resample('W', level=1).apply(ohlc_dict)
+#df.groupby(level=0).resample('W', level=1).apply(ohlc_dict)
+#df.groupby(level=0).resample('W', level=1).ohlc()
+
+df = pd.read_hdf('d:/HDF5_Data/buylow_sellhigh_tmp.hdf', 'day', columns=['icode', 'idate', 'open', 'high', 'low', 'close', 'stflag', 'hfqratio']).swaplevel().sort_index()
+hfq = pd.DataFrame()
+hfq['open'] = df.open * df.hfqratio
+hfq['high'] = df.high * df.hfqratio
+hfq['low'] = df.low * df.hfqratio
+hfq['close'] = df.close * df.hfqratio
+
+
+wdf = pd.DataFrame()
+gp = hfq.groupby(level=0)
+wdf['open'] = gp.open.resample('W', level=1).first()
+wdf['high'] = gp.high.resample('W', level=1).max()
+wdf['low'] = gp.low.resample('W', level=1).min()
+wdf['close'] = gp.close.resample('W', level=1).last()
+#wdf['hfq'] = gp.hfq.resample('W', level=1).last()
+gp = wdf.groupby(level=0)
+wdf['ma10'] = gp.close.rolling(window=10).mean()
+wdf['ma20'] = gp.close.rolling(window=20).mean()
+wdf['ma30'] = gp.close.rolling(window=30).mean()
+wdf['hfq'] = 1
+
+wdf.to_hdf('d:/HDF5_Data/wdf.hdf', 'week', mode='w', format='t', complib='blosc')
+
 
 
 

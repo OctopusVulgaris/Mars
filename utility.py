@@ -10,9 +10,45 @@ import threading
 import time
 #from dataloader import engine
 from urllib.request import urlopen
+import subprocess as sp
+import sys
+def reconnect():
+    sp.call('rasdial 宽带连接 /disconnect', stdout=sys.stdout)
+    time.sleep(1)
+    sp.call('rasdial 宽带连接 *63530620 040731', stdout=sys.stdout)
 
 full_df = pd.DataFrame()
 mutex = threading.Lock()
+
+Rmin = lambda x: (x / x[-1]).min()
+Rmax = lambda x: (x / x[-1]).max()
+R= lambda x: x[0] / x[-1]
+
+def slope(day, Y):
+    X = np.array(range(1, day+1))/10
+    return ((X * Y).mean() - X.mean() * Y.mean()) / ((X ** 2).mean() - (X.mean()) ** 2)
+
+def calcXdaySlope(x, days):
+    y = x.sort_index(level=1, ascending=False)
+    #as the sequence reversed, so slope need * -1
+    y = y.rolling(window=days).apply(lambda x: slope(days, x)*-1)
+    return y.sort_index(level=1, ascending=True)
+
+def calcXday(x, days, foo):
+    y = x.sort_index(level=1, ascending=False)
+    y = y.rolling(window=days).apply(foo)
+    return y.sort_index(level=1, ascending=True)
+
+def calcXdayMean(x, days):
+    y = x.sort_index(level=1, ascending=False)
+    y = y.rolling(window=days).mean()
+    return y.sort_index(level=1, ascending=True)
+
+def calcXdayStd(x, days):
+    y = x.sort_index(level=1, ascending=False)
+    y = y.rolling(window=days).std()
+    return y.sort_index(level=1, ascending=True)
+
 
 def round_series(s):
     s = s * 1000

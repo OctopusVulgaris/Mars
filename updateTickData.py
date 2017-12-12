@@ -10,6 +10,7 @@ import pandas as pd
 import sys
 import os
 import multiprocessing as mp
+from utility import reconnect
 
 
 g_flag = 0
@@ -35,8 +36,9 @@ def request_history_tick(code, datelist):
     for cur_day in datelist:
         succeeded = False
         retry = 0
-        try:
-            while (succeeded == False) and (retry < 10):
+
+        while (succeeded == False) and (retry < 10):
+            try:
                 tick = ts.get_tick_data(code, date=str(cur_day.date()), retry_count=10, src='tt')
                 if tick is not None and not tick.empty:
                     if tick.time[0] != 'alert("当天没有数据");':
@@ -55,9 +57,10 @@ def request_history_tick(code, datelist):
                         df = df.append(tick)
                 succeeded = True
 
-        except Exception as e:
-            retry += 1
-            logging.error(str(code) + ' request tick; retry ' + str(retry) + ' on ' + str(cur_day.date()) + '%s' % e)
+            except Exception as e:
+                retry += 1
+                reconnect()
+                logging.error(str(code) + ' request tick; retry ' + str(retry) + ' on ' + str(cur_day.date()) + '%s' % e)
 
     #logging.info('finished request tick, code: ' + code)
     if not df.empty:
@@ -199,7 +202,7 @@ if __name__=="__main__":
     #threads.append(t1)
 
 
-    for i in range(15):
+    for i in range(1):
         t = mp.Process(target=requesttick, args=(backbone1, backbone2,))
         t.daemon = True
         t.start()

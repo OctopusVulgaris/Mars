@@ -7,7 +7,7 @@ import tushare as ts
 import time
 import subprocess as sp
 import sys
-
+from utility import calcXdayR, calcXdayRmax, calcXdayRmin
 def nor(x):
     return (x-x.mean())/x.std()
 
@@ -66,20 +66,6 @@ a['R'] = a.opct.groupby(level=0).cumprod()
 
 
 
-def calcXdayR(x, days):
-    y = x.sort_index(level=1, ascending=False)
-    y = y.rolling(window=days).apply(lambda x: x[0] / x[-1])
-    return y.sort_index(level=1, ascending=True)
-
-def calcXdayRmax(x, days):
-    y = x.sort_index(level=1, ascending=False)
-    y = y.rolling(window=days).apply(lambda x: (x / x[-1]).max())
-    return y.sort_index(level=1, ascending=True)
-
-def calcXdayRmin(x, days):
-    y = x.sort_index(level=1, ascending=False)
-    y = y.rolling(window=days).apply(lambda x: (x / x[-1]).min())
-    return y.sort_index(level=1, ascending=True)
 
 
 r = a.R.groupby(level=0)

@@ -5,7 +5,7 @@ import numpy as np
 import requests
 from lxml import etree
 from io import StringIO, BytesIO
-from utility import round_series, getcodelist, getindexlist
+from utility import round_series, getcodelist, getindexlist, reconnect
 import random, string
 import argparse
 import utility
@@ -14,13 +14,10 @@ import time
 import logging
 import sys
 import tushare as ts
-import subprocess as sp
+
 
 ashare_pattern = r'^0|^3|^6'
-def reconnect():
-    sp.call('rasdial 宽带连接 /disconnect', stdout=sys.stdout)
-    time.sleep(1)
-    sp.call('rasdial 宽带连接 *63530620 040731', stdout=sys.stdout)
+
 
 report_date = ['2004-06-30', '2004-09-30', '2004-12-31',
                '2005-03-31', '2005-06-30', '2005-09-30', '2005-12-31',
