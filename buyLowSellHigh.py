@@ -132,9 +132,14 @@ def prepareMediateFile():
     df = df[df.tradeablecap > 0]
     df.sort_index(inplace=True)
 
+
     logging.info('calculating...' + str(datetime.datetime.now()))
     groupbycode = df.groupby(level=0)
+    df['wma20'] = groupbycode.close.resample('W', level=1).last().rolling(window=20).mean().reindex(df.index, method='ffill')
+
     df = groupbycode.apply(calc)
+
+    df = df.reset_index(level=0, drop=True)
 
     lastday = df.index.get_level_values(1)[-1]
     tomorrow = df.loc(axis=0)[:, lastday].reset_index()
@@ -237,7 +242,7 @@ def doProcessing(df, loglevel):
 
     # process
     BLSHdll.process.restype = ct.c_int64
-    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int64]
+    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int64]
 
 
     cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
@@ -247,6 +252,7 @@ def doProcessing(df, loglevel):
     cplow = df.plow.get_values().ctypes.data_as(c_double_p)
     cplowlimit = df.plowlimit.get_values().ctypes.data_as(c_double_p)
     copen = df.open.get_values().ctypes.data_as(c_double_p)
+    cwma20 = df.wma20.get_values().ctypes.data_as(c_double_p)
     chighlimit = df.highlimit.get_values().ctypes.data_as(c_double_p)
     clowlimit = df.lowlimit.get_values().ctypes.data_as(c_double_p)
     chfqratio = df.hfqratio.get_values().ctypes.data_as(c_double_p)
@@ -254,7 +260,7 @@ def doProcessing(df, loglevel):
     cupperamo = df.upperamo.get_values().ctypes.data_as(ct.c_void_p)
     cloweramo = df.loweramo.get_values().ctypes.data_as(ct.c_void_p)
 
-    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chighlimit, clowlimit, chfqratio, cstflag, cupperamo, cloweramo, len(df))
+    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, cwma20, chighlimit, clowlimit, chfqratio, cstflag, cupperamo, cloweramo, len(df))
 
         # ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
         # td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
