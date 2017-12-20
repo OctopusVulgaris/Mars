@@ -194,6 +194,8 @@ def initializeholding(type):
     if initholding.empty:
         return
 
+
+
     initholding = initholding.loc[initholding.index[-1]]
 
     BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
