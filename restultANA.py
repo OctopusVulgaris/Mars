@@ -85,6 +85,8 @@ for file in logfiles:
         params = file.strip('h_.csv').split('_')
 
         df = pd.read_csv(path + file,parse_dates=[0], names=['date', 'code', 'buyprc', 'buyhfq', 'vol', 'histhigh', 'amo', 'cash', 'total'])
+        if df.empty:
+            continue
         df['hh'] = df.total.expanding().max()
         df['maxdd'] = 1 - (df.total / df.hh).min()
         df = df.set_index('date')
@@ -112,8 +114,9 @@ for file in logfiles:
         df['maxmin20greater'] = params[12]
         df['maxmin20less'] = params[13]
         df['phighlow20less'] = params[14]
-        df['startdate'] = params[15]
+        df['startdate'] = time.strftime('%Y-%m-%d', time.localtime(int(params[15][:-2])))
         df['years'] = (df.index[-1].year - df.index[0].year) + float(df.index[-1].month - df.index[0].month) / 10
+        df['skipbuypoint'] = params[16]
         df['earningrate'] = float(df.total.iloc[-1]) / df.total.iloc[0]
         df['earningperyear'] = np.power(df.earningrate.iloc[-1], 1.0 / df.years.iloc[-1]) - 1
         df = df.tail(1)
