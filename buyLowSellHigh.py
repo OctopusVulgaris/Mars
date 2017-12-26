@@ -191,12 +191,8 @@ def initializeholding(type):
 
     initholding = pd.read_csv('d:\\tradelog\\holding_real_c.csv', header=None, parse_dates=True, names=['date', 'code', 'buyprc', 'buyhfqratio', 'vol', 'historyhigh', 'amount', 'cash', 'total'], dtype={'code': np.int64, 'buyprc': np.float64, 'buyhfqratio': np.float64, 'vol': np.int64, 'historyhigh': np.float64, 'amount': np.float64, 'cash': np.float64, 'total': np.float64}, index_col='date')
 
-    if initholding.empty:
-        return
-
-
-
-    initholding = initholding.loc[initholding.index[-1]]
+    if not initholding.empty:
+        initholding = initholding.loc[initholding.index[-1]]
 
     BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
 
@@ -209,16 +205,21 @@ def initializeholding(type):
     chistoryhigh = initholding.historyhigh.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
     camount = initholding.amount.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
 
-    ll = len(initholding)
-    cash = initholding.cash.get_values()[0]
-    total = initholding.total.get_values()[0]
+
     if type == 0:
         ll = 0
         cash = 100000
         total = 100000
-    if initholding.empty:
+
         BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, int(ll), ct.c_double(cash), ct.c_double(total), int(type))
     else:
+        ll = len(initholding)
+        cash = 100000
+        total = 100000
+        if ll > 0:
+            cash = initholding.cash.get_values()[0]
+            total = initholding.total.get_values()[0]
+
         BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, int(ll), ct.c_double(cash), ct.c_double(total), int(type))
 
 def doProcessing(df, loglevel):
@@ -355,7 +356,7 @@ def morningTrade():
     doProcessing(df, 1)
 
     logging.info('sending mail...' + str(datetime.datetime.now()))
-    transactions = pd.read_csv('d:\\tradelog\\transaction_real_c.csv', header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
+    transactions = pd.read_csv('d:\\tradelog\\transaction_real_c.csv', header=None, parse_dates=True, names=['date', 'type', 'code', 'buyprc', 'sellprc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
 
     try:
         transactions.type.replace({0:'buy', 1:'sell out pool', 2:'sell open high', 3:'sell fallback', 4:'sell st flag'}, inplace=True)
