@@ -125,7 +125,7 @@ def ComputeCustomIndex(df):
 
 def prepareMediateFile():
     logging.info('reading dailydata.h5...' + str(datetime.datetime.now()))
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','dayk', columns=['close', 'high', 'low', 'open', 'totalcap', 'tradeablecap', 'name', 'hfqratio'], where='date > \'2005-12-1\'')
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','day', columns=['close', 'high', 'low', 'open', 'totalcap', 'tradeablecap', 'name', 'hfqratio'], where='date > \'2006-1-1\'')
     #df = df[df.code.str.contains(ashare_pattern)]
     logging.info('sorting, [code, date]...' + str(datetime.datetime.now()))
 
@@ -189,14 +189,14 @@ def prepareMediateFile():
 
 def initializeholding(type):
 
-    initholding = pd.read_csv('d:\\tradelog\\holding_real_c.csv', header=None, parse_dates=True, names=['date', 'code', 'buyprc', 'buyhfqratio', 'vol', 'historyhigh', 'amount', 'cash', 'total'], dtype={'code': np.int64, 'buyprc': np.float64, 'buyhfqratio': np.float64, 'vol': np.int64, 'historyhigh': np.float64, 'amount': np.float64, 'cash': np.float64, 'total': np.float64}, index_col='date')
+    initholding = pd.read_csv('d:\\tradelog\\holding_real_c.csv', header=None, parse_dates=True, names=['date', 'code', 'buyprc', 'buyhfqratio', 'vol', 'daystosell', 'historyhigh', 'amount', 'cash', 'total'], dtype={'code': np.int64, 'buyprc': np.float64, 'buyhfqratio': np.float64, 'vol': np.int64, 'daystosell': np.int64, 'historyhigh': np.float64, 'amount': np.float64, 'cash': np.float64, 'total': np.float64}, index_col='date')
 
     if not initholding.empty:
         initholding = initholding.loc[initholding.index[-1]]
 
     BLSHdll = ct.cdll.LoadLibrary('d:\\BLSH.dll')
 
-    BLSHdll.initialize.argtypes = [ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_int, ct.c_double, ct.c_double, ct.c_int]
+    BLSHdll.initialize.argtypes = [ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_void_p, ct.c_int, ct.c_double, ct.c_double, ct.c_int]
 
     ccode = initholding.code.get_values().ctypes.data_as(ct.c_void_p)
     cbuyprc = initholding.buyprc.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
@@ -204,6 +204,7 @@ def initializeholding(type):
     cvol = initholding.vol.get_values().ctypes.data_as(ct.c_void_p)
     chistoryhigh = initholding.historyhigh.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
     camount = initholding.amount.get_values().ctypes.data_as(ct.POINTER(ct.c_double))
+    cdaystosell = initholding.daystosell.get_values().ctypes.data_as(ct.c_void_p)
 
 
     if type == 0:
@@ -211,7 +212,7 @@ def initializeholding(type):
         cash = 100000
         total = 100000
 
-        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, int(ll), ct.c_double(cash), ct.c_double(total), int(type))
+        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, cdaystosell, len(ll), ct.c_double(cash), ct.c_double(total), int(type))
     else:
         ll = len(initholding)
         cash = 100000
@@ -220,7 +221,7 @@ def initializeholding(type):
             cash = initholding.cash.get_values()[0]
             total = initholding.total.get_values()[0]
 
-        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, int(ll), ct.c_double(cash), ct.c_double(total), int(type))
+        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, cdaystosell, int(ll), ct.c_double(cash), ct.c_double(total), int(type))
 
 def doProcessing(df, loglevel):
 

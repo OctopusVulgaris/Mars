@@ -56,7 +56,7 @@ def IO(q1, q2):
     for code in target_list.code.values:
         startdate = '1997-01-01'
         if mode == 'a':
-            df = daykStore.select('dayk', where='code==\'%s\'' % (code))
+            df = daykStore.select('day', where='code==\'%s\'' % (code))
             if not df.empty:
                 startdate = df.index.get_level_values(1)[-1].strftime('%Y-%m-%d')
 
@@ -68,7 +68,7 @@ def IO(q1, q2):
             cnt = cnt - 1
             if not df.empty:
                 c = df.index.get_level_values(0)[0]
-                daykStore.append('dayk', df)
+                daykStore.append('day', df)
                 logging.info('finished save dayk, code: ' + c)
 
     while cnt > 0:
@@ -77,7 +77,7 @@ def IO(q1, q2):
             cnt = cnt - 1
             if not df.empty:
                 c = df.index.get_level_values(0)[0]
-                daykStore.append('dayk', df)
+                daykStore.append('day', df)
                 logging.info('finished save dayk, code: ' + c)
 
     daykStore.close()

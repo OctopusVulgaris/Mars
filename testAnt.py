@@ -506,14 +506,22 @@ def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), tim
         data = data.set_index(['code', 'date'])
 #        data.to_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
         data = data.sort_index()
-        daykStore.append('dayk', data, min_itemsize={'values': 30})
+        daykStore.append('day', data, min_itemsize={'values': 30})
 
 def get_fundmental_data_163(code, timeout=3):
-    url = r'http://quotes.money.163.com/service/zycwzb_' + code + '.html?type=report'
+    url = 'http://quotes.money.163.com/service/zycwzb_' + code + '.html?type=report'
 
     r = requests.get(url, timeout=timeout)
     data = pd.read_csv(StringIO(r.content.decode(encoding='gbk'))).T.dropna()
-    data.to_csv('D:\\HDF5_Data\\fundmental\\'+code+'.csv', header=False, encoding='gbk')
+    data = data.replace('--', np.NaN)
+    data.to_csv('D:/HDF5_Data/fundamental/163/cwzb/'+code+'.csv', header=False, encoding='gbk')
+
+    url = 'http://quotes.money.163.com/service/zycwzb_' + code + '.html?type=report&part=ylnl'
+
+    r = requests.get(url, timeout=timeout)
+    data = pd.read_csv(StringIO(r.content.decode(encoding='gbk'))).T.dropna()
+    data = data.replace('--', np.NaN)
+    data.to_csv('D:/HDF5_Data/fundamental/163/ylnl/' + code + '.csv', header=False, encoding='gbk')
 
 def get_full_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='w')
@@ -542,10 +550,10 @@ def get_full_daily_data_163(retry=50, pause=1):
 
 def get_delta_daily_data_163(retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='a')
-    tmpdf = daykStore.select('dayk', start=-10000)
+    tmpdf = daykStore.select('day', start=-10000)
     if tmpdf.empty:
-        print ('error, empty dayk')
-        logging.info('error, empty dayk')
+        print ('error, empty day')
+        logging.info('error, empty day')
         return
     tmpdf = tmpdf.sort_index(level=1, ascending=True)
     startdate = tmpdf.index.get_level_values(1)[-1] + dt.timedelta(days=1)
@@ -588,12 +596,12 @@ def get_full_daily_data_sina(retry=50, pause=1):
                     if data is None:
                         data
                     elif data.empty:
-                        logging.info('Error, empty dayk for code: %s' % (row.code))
+                        logging.info('Error, empty day for code: %s' % (row.code))
                     else:
                         data = data.sort_index()
                         data['code'] = row.code
                         data = data.set_index(['code', data.index])
-                        daykStore.append('dayk', data)
+                        daykStore.append('day', data)
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
@@ -620,7 +628,7 @@ def get_delta_daily_data_sina(retry=50, pause=1):
             for _ in range(retry):
                 try:
                     startdate = '1997-01-01'
-                    df = daykStore.select('dayk', where='code==\'%s\'' %(row.code))
+                    df = daykStore.select('day', where='code==\'%s\'' %(row.code))
                     if not df.empty:
                         t = df.index.get_level_values(1)[-1] + dt.timedelta(days=1)
                         startdate = t.strftime('%Y-%m-%d')
@@ -634,7 +642,7 @@ def get_delta_daily_data_sina(retry=50, pause=1):
                         data = data.sort_index()
                         data['code'] = row.code
                         data = data.set_index(['code', data.index])
-                        daykStore.append('dayk', data)
+                        daykStore.append('day', data)
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
@@ -689,16 +697,16 @@ def getcninfooneric(code, startyear, endyear, type):
         'Accept-Encoding': 'gzip, deflate',
         'Accept-Language': 'zh-CN,zh;q=0.8',
         'Cache-Control': 'max-age=0',
-        #'Connection': 'keep-alive',
+        'Connection': 'keep-alive',
         'Content-Length': '1107',
         'Content-Type': 'multipart/form-data; boundary=' + BOUNDARY,
         # 'Cookie':'JSESSIONID=EDCC00C060A5E9338635CE524C7305FC',
         'Host': 'www.cninfo.com.cn',
         'Origin': 'http://www.cninfo.com.cn',
-        # 'Proxy-Connection':'keep-alive',
+        'Proxy-Connection':'keep-alive',
         'Referer': 'http://www.cninfo.com.cn/cninfo-new/index',
         'Upgrade-Insecure-Requests': '1',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.84 Safari/537.36',
     }
     r = requests.post("http://www.cninfo.com.cn/cninfo-new/data/download", data=body, headers=headers)
 
@@ -747,6 +755,7 @@ def getcninfodaily(type='delta', retry=10, pause=2):
         for _ in range(retry):
             #time.sleep(pause)
             try:
+
                 size = getcninfooneric(code, start, end, 'hq')
                 if size < 1:
                     logging.info('retry hq for %s' % code)
@@ -754,7 +763,7 @@ def getcninfodaily(type='delta', retry=10, pause=2):
                     continue
                 else:
                     cnt;
-                    #daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+                    #daykStore.append('day', df, min_itemsize={'name': 20, 'exchange' : 15})
             except Exception as e:
                 logging.error('Error, %s, %s' % (code, e))
                 reconnect()
@@ -776,7 +785,7 @@ def getcninfodaily(type='delta', retry=10, pause=2):
                     continue
                 else:
                     cnt;
-                    # daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+                    # daykStore.append('day', df, min_itemsize={'name': 20, 'exchange' : 15})
             except Exception as e:
                 logging.error('Error, %s, %s' % (code, e))
                 reconnect()
@@ -798,7 +807,7 @@ def getcninfodaily(type='delta', retry=10, pause=2):
                     continue
                 else:
                     cnt;
-                    # daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+                    # daykStore.append('day', df, min_itemsize={'name': 20, 'exchange' : 15})
             except Exception as e:
                 logging.error('Error, %s, %s' % (code, e))
                 reconnect()
@@ -820,7 +829,7 @@ def getcninfodaily(type='delta', retry=10, pause=2):
                     continue
                 else:
                     cnt;
-                    # daykStore.append('dayk', df, min_itemsize={'name': 20, 'exchange' : 15})
+                    # daykStore.append('day', df, min_itemsize={'name': 20, 'exchange' : 15})
             except Exception as e:
                 logging.error('Error, %s, %s' % (code, e))
                 reconnect()
@@ -917,7 +926,7 @@ def calcFullRatio(daydata):
     t1 = dt.datetime.now()
     dayk = pd.HDFStore(daydata, mode='a', complib='blosc')
     brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r', complib='blosc')
-    df = dayk.select('dayk')
+    df = dayk.select('day')
     bi = brs.select('bonus')
     ri = brs.select('rightsissue')
     si = brs.select('stockchange')
@@ -963,7 +972,7 @@ def calcFullRatio(daydata):
     df.hfqratio = all
     #df.hfqratio.fillna(1, inplace=True)
     df = df.sort_index()
-    dayk.put('dayk', df, format='t')
+    dayk.put('day', df, format='t')
 
     dayk.close()
     print (dt.datetime.now() - t2)
@@ -1016,7 +1025,7 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
         return pd.DataFrame()
 
 def getHolder163():
-    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'dayk', columns=['open'])
+    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'day', columns=['open'])
     all = all.reset_index(level=1)
     all = all.groupby(level=0).apply(lambda x: x.iloc[0])
     all = all.reset_index(level=0)
@@ -1060,7 +1069,7 @@ def getHolder163():
 
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['full', 'delta', 'sinafull', 'sinadelta', 'cninfofull', 'cninfodelta', 'index', '10maxhold'], default='full', help='download type')
+    parse.add_argument('-t', type=str)
 
     args=parse.parse_args()
     return vars(args)
@@ -1105,6 +1114,8 @@ if __name__=="__main__":
         getcninfodaily('full')
     elif (type == '10maxhold'):
         getHolder163()
+    elif (type == 'fundamental'):
+        getFundmental163()
 
 
 

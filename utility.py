@@ -87,8 +87,11 @@ def gop_worker(symbols, idx, retry=60):
         full_df = full_df.append(df)
         mutex.release()
 
-def getcodelist():
-    return pd.read_hdf('d:/HDF5_Data/stocklist.hdf').reset_index()
+def getcodelist(active=False):
+    df = pd.read_hdf('d:/HDF5_Data/stocklist.hdf').reset_index()
+    if active:
+        return df[df.status>0]
+    return df
 
 def getindexlist():
     return pd.read_hdf('d:/HDF5_Data/indexlist.hdf')
@@ -126,7 +129,7 @@ def get_realtime_all():
 def get_realtime_all_st(symbols=[], retry=60):
     start = time.time()
     if len(symbols) < 1:
-        riclist = getcodelist()
+        riclist = getcodelist(True)
         symbols = riclist['code'].values
     full_df = pd.DataFrame()
     length = len(symbols)
