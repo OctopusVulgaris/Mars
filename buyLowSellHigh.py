@@ -212,7 +212,7 @@ def initializeholding(type):
         cash = 100000
         total = 100000
 
-        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, cdaystosell, len(ll), ct.c_double(cash), ct.c_double(total), int(type))
+        BLSHdll.initialize(ccode, cbuyprc, cbuyhfqratio, cvol, chistoryhigh, camount, cdaystosell, int(ll), ct.c_double(cash), ct.c_double(total), int(type))
     else:
         ll = len(initholding)
         cash = 100000

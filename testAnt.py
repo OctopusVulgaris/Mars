@@ -14,6 +14,8 @@ import time
 import logging
 import sys
 import tushare as ts
+import os
+from shutil import copyfile
 
 
 ashare_pattern = r'^0|^3|^6'
@@ -657,7 +659,280 @@ def get_delta_daily_data_sina(retry=50, pause=1):
         pass
     daykStore.close()
 
+def getadate(astrdate):
+    try:
+        adate = dt.datetime.strptime(astrdate, '%Y-%m-%d')
+    except ValueError:
+        return dt.datetime(1900, 1, 1)
+    else:
+        return adate
 
+def getreportdate(astrdate, type):
+    if(astrdate == ''):
+        astrdate = '1900-1-1'
+    try:
+        adate = dt.datetime.strptime(astrdate, '%Y-%m-%d')
+    except ValueError:
+        return dt.datetime(1900, 1, 1)
+    year = adate.year
+    month = adate.month
+    day = adate.day
+    ryear = year
+    rmonth = 0
+    rday  = 0
+    if (type == '一季度报告'):
+        rmonth = 3
+        rday = 31
+    elif (type == '中期报告'):
+        rmonth = 6
+        rday = 30
+    elif (type == '三季度报告'):
+        rmonth = 9
+        rday = 30
+    elif (type == '年度报告'):
+        rmonth = 12
+        rday = 31
+        if(month == 12 and day == 31):
+            pass
+        else:
+            ryear -= 1
+    else:
+        return dt.datetime(1900, 1, 1)
+    return dt.datetime(ryear, rmonth, rday)
+
+report_type = {
+    '一季度报告' : 'yjdbg',
+    '中期报告'  : 'zqbg',
+    '三季度报告' : 'sjdbg',
+    '年度报告': 'ndbg'
+}
+def getadate163(code, maxseq = 100):
+
+    print(code)
+    codes = []
+    adates = []
+    rdates = []
+
+    for seq in range(0, maxseq):
+        for _ in range(10):
+            try:
+                url = 'http://quotes.money.163.com/f10/gsgg_' + code + ',dqbg,' + str(seq) + '.html'
+                content = requests.get(url, timeout=5).content
+                ct = content.decode(encoding='utf-8', errors='ignore')
+                selector = etree.HTML(ct)
+                nodatatxt = ''.join(selector.xpath('//*[@id="newsTabs"]/div/table/tr/td/text()'))
+                break
+            except:
+                reconnect()
+                continue
+            else:
+                break
+
+        if (nodatatxt.find("暂无数据") != -1):
+            break
+        rows = selector.xpath('//*[@id="newsTabs"]/div/table/tr')
+        for row in rows:
+            stradate = ''.join(row.xpath('td[2]/text()'))
+            rtype = ''.join(row.xpath('td[3]/text()'))
+            rdate = getreportdate(stradate, rtype)
+            adate = getadate(stradate)
+            codes.append(code)
+            adates.append(adate)
+            rdates.append(rdate)
+
+
+    df = pd.DataFrame(data={'code':codes, '报告日期':rdates, '公告日期':adates})
+    df = df.drop_duplicates(['code', '报告日期'], keep='last')
+    df = df.set_index(['code', '报告日期']).sort_index()
+    if not df.empty:
+        df = df.loc(axis=0)[:, '1990-1-1':]
+    #print(df)
+    return df
+
+def getadate163all():
+    t1 = time.clock()
+    target_list = getcodelist()
+    dfs = []
+    for code in target_list.code.values:
+        dfs.append(getadate163(code, 100))
+
+    all = pd.concat(dfs)
+    #print(all.to_string())
+    all.to_hdf('d:/hdf5_data/adate163.hdf', 'fundamental')
+    logging.info('getadate163all done ' + str(time.clock() - t1))
+
+def getadatesina(code, type):
+
+    print(code)
+    codes = []
+    adates = []
+    rdates = []
+
+    url = 'http://vip.stock.finance.sina.com.cn/corp/go.php/vCB_BulletinYi/stockid/' + code + '/page_type/' + report_type[type] + '.phtml'
+
+    for _ in range(10):
+        try:
+            content = requests.get(url, timeout=5).content
+            ct = content.decode(encoding='gbk', errors='ignore')
+            selector = etree.HTML(ct)
+
+            nodatatxt = ''.join(selector.xpath('//*[@id="con02-7"]/table/tr/td/text()'))
+            if (nodatatxt.find("暂时没有数据") != -1):
+                return pd.DataFrame()
+
+            itr = selector.xpath('//*[@class="datelist"]/ul')[0].itertext()
+        except:
+            reconnect()
+        else:
+            break
+
+    try:
+        while True:
+            txt = next(itr).strip()
+            rdate = getreportdate(txt, type)
+            adate = getadate(txt)
+            codes.append(code)
+            adates.append(adate)
+            rdates.append(rdate)
+    except StopIteration:
+        pass
+
+    df = pd.DataFrame(data={'code':codes, '报告日期':rdates, '公告日期':adates})
+    df = df.drop_duplicates(['code', '报告日期'], keep='last')
+    df = df.set_index(['code', '报告日期']).sort_index()
+    if not df.empty:
+        df = df.loc(axis=0)[:, '1990-1-1':]
+
+    return df
+
+def getadatesinaall():
+    t1 = time.clock()
+    target_list = getcodelist()
+    dfs = []
+    for code in target_list.code.values:
+        dfs.append(getadatesina(code, '一季度报告'))
+        dfs.append(getadatesina(code, '中期报告'))
+        dfs.append(getadatesina(code, '三季度报告'))
+        dfs.append(getadatesina(code, '年度报告'))
+
+    all = pd.concat(dfs)
+    all.to_hdf('d:/hdf5_data/adatesina.hdf', 'fundamental')
+    logging.info('getadatesinaall done ' + str(time.clock() - t1))
+
+def readsinapage(url, match='.+', att=None):
+    for _ in range(10):
+        try:
+            pages = pd.read_html(url, encoding='gbk', match=match, attrs=att)
+            if len(pages) < 1:
+                reconnect()
+            else:
+                return pages
+        except Exception:
+            reconnect()
+
+def getfundamentalsinaric(code, delta=False):
+    print(code)
+    yr = dt.date.today().year - 1
+    url = 'http://money.finance.sina.com.cn/corp/go.php/vFD_FinancialGuideLine/stockid/' + code + '/ctrl/' + str(yr) + '/displaytype/4.phtml'
+    page = readsinapage(url, match='历年数据')
+
+    if delta:
+        years = page[0].iloc[0].values[0].strip('历年数据: ').split(' ')[:2]
+    else:
+        years = page[0].iloc[0].values[0].strip('历年数据: ').split(' ')
+
+    for year in years:
+        url = 'http://money.finance.sina.com.cn/corp/go.php/vFD_FinancialGuideLine/stockid/' + code + '/ctrl/' + str(year) + '/displaytype/4.phtml'
+        page = readsinapage(url, att={'id':'BalanceSheetNewTable0'})
+        page[0].dropna().T.replace('--', np.nan).to_csv('D:/HDF5_Data/fundamental/sina/cwzb/'+code+'_'+str(year)+'.csv', header=False, index=False, encoding='gbk')
+
+
+def getfundamentalsinaall():
+    target_list = getcodelist()
+    llen = len(target_list)
+    cnt = 0
+    for code in target_list.code.values:
+        getfundamentalsinaric(code)
+
+def getfundamentalsinadelta():
+    t1 = time.clock()
+    target_list = getcodelist()
+    llen = len(target_list)
+    cnt = 0
+    for code in target_list.code.values:
+        getfundamentalsinaric(code, delta=True)
+
+    logging.info('getfundamentalsinadelta done ' + str(time.clock() - t1))
+
+
+def csvtohdf(source, type):
+    t1 = time.clock()
+    inputdir = 'd:/hdf5_data/fundamental/%s/%s/' % (source, type)
+    outputfile = 'd:/hdf5_data/fundamental%s_%s.hdf'% (source, type)
+    dfs = []
+    all = os.listdir(inputdir)
+    for file in all:
+        print(file + str())
+        try:
+            csv = pd.read_csv(inputdir+file, encoding='gbk', parse_dates=['报告日期'], header=0, dtype=float)
+            year = csv['报告日期'].dt.year.max()
+            csv = csv.set_index('报告日期')
+            idx = pd.DatetimeIndex([dt.datetime(year, 3, 31, 0, 0, 0), dt.datetime(year, 6, 30, 0, 0, 0), dt.datetime(year, 9, 30, 0,0,0), dt.datetime(year,12,31,0,0,0)])
+            csv = csv.reindex(idx)
+            #csv['年度报告'] = np.nan
+            #csv.loc[dt.datetime(year, 12, 31, 0, 0, 0), '年度报告'] = csv['每股收益_调整后(元)'][-1]
+            csv['code'] = file[:6]
+            csv = csv.set_index(['code', csv.index])
+            csv = csv.sort_index().rolling(window=2).apply(lambda x: x[1] - x[0]).combine_first(csv)
+        except ValueError:
+            pass
+        else:
+            dfs.append(csv)
+
+
+    df = pd.concat(dfs)
+    df = df.sort_index()
+    df.to_hdf(outputfile, 'fundamental',mode='w', format='t')
+
+    logging.info('csvtohdf done ' + str(time.clock() - t1))
+
+def processfundamental():
+    t1 = time.clock()
+    fdsina = pd.read_hdf('d:/hdf5_data/fundamentalsina_cwzb.hdf')
+    eps = fdsina[['每股收益_调整后(元)', '主营业务利润(元)', '主营业务利润率(%)', '每股经营性现金流(元)','销售净利率(%)','销售毛利率(%)','加权净资产收益率(%)']]
+    epsttm = eps.groupby(level=0, group_keys=False).rolling(window=4).sum()
+    epsyoy = eps.groupby(level=0).resample('Y', level=1).sum()
+    epsall = epsttm.combine_first(epsyoy)
+    epsall = epsall.loc(axis=0)[:, '2007-1-1':].dropna()
+    epsall = pd.DataFrame(epsall)
+    adate = pd.read_hdf('d:/hdf5_data/adatesina.hdf')
+    adate163 = pd.read_hdf('d:/hdf5_data/adate163.hdf')
+    adate = adate.combine_first(adate163)
+    adate = pd.DataFrame(adate)
+    epsall['adate'] = adate
+    epsall = epsall.sort_index(ascending=True)
+    epstmp = epsall.drop_duplicates('adate', keep='last')
+    epstmp = epstmp.dropna().reset_index().set_index(['code', 'adate']).sort_index()
+
+    day = pd.read_hdf('d:/hdf5_data/dailydata.h5')
+    #epstmp = epstmp.reindex(day.index, method='ffill')
+    combinedIndex = epstmp.index.union(day.index)
+    epstmp = epstmp.reindex(combinedIndex)
+    epstmp = epstmp.groupby(level=0).fillna(method='ffill')
+
+    combinedIndex = epsall.index.union(day.index)
+    epsall = epsall.reindex(combinedIndex)
+    epsall = epsall.groupby(level=0).fillna(method='ffill')
+
+
+    #epsall = epstmp['每股收益_调整后(元)'].combine_first(epsall['每股收益_调整后(元)'])
+    epsall = epstmp.combine_first(epsall)
+    epsall = epsall.reindex(day.index)
+    day['pe'] = day.open / epsall['每股收益_调整后(元)']
+    day = day.fillna(0)
+    day.to_hdf('d:/hdf5_data/dailydata.h5','day', mode='w', format='t')
+    epsall.to_hdf('d:/hdf5_data/fundamental.hdf', 'fundamental', mode='w', format='t')
+    logging.info('processfundamention done '+ str(time.clock()-t1))
 
 def random_str(randomlength=8):
     a = list(string.ascii_letters)
@@ -923,7 +1198,7 @@ def cumprod(x):
     return x.cumprod()
 
 def calcFullRatio(daydata):
-    t1 = dt.datetime.now()
+    t1 = time.clock()
     dayk = pd.HDFStore(daydata, mode='a', complib='blosc')
     brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r', complib='blosc')
     df = dayk.select('day')
@@ -954,9 +1229,7 @@ def calcFullRatio(daydata):
     bi['pclose'] = sPclose.reindex(bi.index, method='pad')
     #bi['b'] = (bi.pclose - bi.riprice) / bi.riprice
     #bi = bi[bi.b > 0.05]
-    print (dt.datetime.now() - t1)
 
-    t2 = dt.datetime.now()
 
     adjpclose = (bi.pclose - (bi.divpay / 10) + bi.riprice * bi.ri / 10) / (1 + (bi.give + bi.trans) / 10 + bi.ri / 10)
     adjpclose = round_series(adjpclose)
@@ -975,7 +1248,7 @@ def calcFullRatio(daydata):
     dayk.put('day', df, format='t')
 
     dayk.close()
-    print (dt.datetime.now() - t2)
+    logging.info('callfullratio done' + str(time.clock() - t1))
 
 def getMax10holder(code, ipodate, tradeable=True, retry=10):
     datelist = rd[ipodate:dt.datetime.today().strftime('%Y-%m-%d')]
@@ -1065,6 +1338,12 @@ def getHolder163():
 
     result.to_hdf('d:/HDF5_Data/Max10Holdings.hdf', 'hold', mode='w', format='f', complib='blosc')
 
+def backupfile():
+    copyfile('D:/hdf5_data/dailydata.h5', 'D:/hdf5_data/backup/dailydata.h5')
+    copyfile('D:/hdf5_data/week.hdf', 'D:/hdf5_data/backup/week.hdf')
+    copyfile('D:/hdf5_data/brsInfo.h5', 'D:/hdf5_data/backup/brsInfo.h5')
+    copyfile('D:/hdf5_data/stocklist.hdf', 'D:/hdf5_data/backup/stocklist.hdf')
+    copyfile('D:/hdf5_data/hfqfactor.hdf', 'D:/hdf5_data/backup/hfqfactor.hdf')
 
 
 def getArgs():
@@ -1088,13 +1367,17 @@ if __name__=="__main__":
     log.addHandler(stdout_handler)
 
     if (type == 'full'):
-        #updateindexlist()
-        #get_all_full_index_daily()
+        backupfile()
         updatestocklist(5, 5)
-        #getFundmental163()
+        getfundamentalsinadelta()
+        getadatesinaall()
         get_bonus_ri_sc()
         get_full_daily_data_163()
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
+    elif (type == 'fundamental'):
+        getadate163all()
+        csvtohdf('sina', 'cwzb')
+        processfundamental()
     elif (type == 'delta'):
         updatestocklist(5, 5)
         get_bonus_ri_sc()
@@ -1114,8 +1397,9 @@ if __name__=="__main__":
         getcninfodaily('full')
     elif (type == '10maxhold'):
         getHolder163()
-    elif (type == 'fundamental'):
-        getFundmental163()
+    elif (type == 'test'):
+        calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
+
 
 
 
