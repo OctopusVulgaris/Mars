@@ -12,6 +12,8 @@ import time
 from urllib.request import urlopen
 import subprocess as sp
 import sys
+
+st_pattern = r'^S|^\*|退|ST'
 def reconnect():
     sp.call('rasdial 宽带连接 /disconnect', stdout=sys.stdout)
     time.sleep(1)

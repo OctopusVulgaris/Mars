@@ -42,8 +42,8 @@ def sort(x):
     x = x.sort_values('ptotalcap', ascending=True)
 
     # check st, final true is ready to buy
-    x['stflag'] = 0
-    x.loc[x.name.str.contains(st_pattern), 'stflag'] = 1
+    #x['stflag'] = 0
+    #x.loc[x.name.str.contains(st_pattern), 'stflag'] = 1
     x['buyflag'] = x.stflag < 1
     # open on this day
     x['buyflag'] = x.buyflag & (x.open > 0.01)
@@ -96,7 +96,7 @@ def calc(x):
     valid['ptotalcap'] = 0
     valid['ptotalcap'].iloc[1:] = x.totalcap.values[:validLen - 1]
 
-    valid['name'] = x['name']
+    valid['stflag'] = x['stflag']
     valid['totalcap'] = x.totalcap
     valid['hfqratio'] = x.hfqratio
     valid['phfqratio'].iloc[1:] = valid.hfqratio.values[:validLen - 1]
@@ -125,7 +125,7 @@ def ComputeCustomIndex(df):
 
 def prepareMediateFile():
     logging.info('reading dailydata.h5...' + str(datetime.datetime.now()))
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','day', columns=['close', 'high', 'low', 'open', 'totalcap', 'tradeablecap', 'name', 'hfqratio'], where='date > \'2006-1-1\'')
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','day', columns=['close', 'high', 'low', 'open', 'totalcap', 'tradeablecap', 'stflag', 'hfqratio'], where='date > \'2006-1-1\'')
     #df = df[df.code.str.contains(ashare_pattern)]
     logging.info('sorting, [code, date]...' + str(datetime.datetime.now()))
 
@@ -245,8 +245,8 @@ def doProcessing(df, loglevel):
     #BLSHdll.setindex(cdate, cprc, cma1, cma2, cma3, cma4, len(index))
 
     # process
-    BLSHdll.process.restype = ct.c_int64
-    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int64]
+    BLSHdll.process.restype = ct.c_double
+    BLSHdll.process.argtypes = [ct.c_void_p, ct.c_void_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, c_double_p, ct.c_void_p, ct.c_void_p, ct.c_void_p, ct.c_int64]
 
 
     cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
@@ -256,7 +256,8 @@ def doProcessing(df, loglevel):
     cplow = df.plow.get_values().ctypes.data_as(c_double_p)
     cplowlimit = df.plowlimit.get_values().ctypes.data_as(c_double_p)
     copen = df.open.get_values().ctypes.data_as(c_double_p)
-    cwma20 = df.wma20.get_values().ctypes.data_as(c_double_p)
+    chigh = df.high.get_values().ctypes.data_as(c_double_p)
+    clow = df.low.get_values().ctypes.data_as(c_double_p)
     chighlimit = df.highlimit.get_values().ctypes.data_as(c_double_p)
     clowlimit = df.lowlimit.get_values().ctypes.data_as(c_double_p)
     chfqratio = df.hfqratio.get_values().ctypes.data_as(c_double_p)
@@ -264,36 +265,32 @@ def doProcessing(df, loglevel):
     cupperamo = df.upperamo.get_values().ctypes.data_as(ct.c_void_p)
     cloweramo = df.loweramo.get_values().ctypes.data_as(ct.c_void_p)
 
-    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, cwma20, chighlimit, clowlimit, chfqratio, cstflag, cupperamo, cloweramo, len(df))
+    ret = BLSHdll.process(cdate, ccode, cpclose, cphigh, cplow, cplowlimit, copen, chigh, clow, chighlimit, clowlimit, chfqratio, cstflag, cupperamo, cloweramo, len(df))
 
-        # ti = ct.cdll.LoadLibrary('d:\\BLSH.dll').testint
-        # td = ct.cdll.LoadLibrary('d:\\BLSH.dll').testdouble
-        # tui = ct.cdll.LoadLibrary('d:\\BLSH.dll').testuint
-        # ti.argtypes = [ct.c_void_p, ct.c_int]
-        # td.argtypes = [c_double_p, ct.c_int]
-        # tui.argtypes = [ct.c_void_p, ct.c_int]
+    return ret
 
 
 def regressionTest():
     logging.info('reading dayk tmp...' + str(datetime.datetime.now()))
     df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date > \'2008-1-1\'')
 
+    '''
     logging.info('reading open split amount data...' + str(datetime.datetime.now()))
     osa = pd.read_hdf('d:\\HDF5_Data\\OpenSplitAmount.hdf', 'day', where='date > \'2008-1-1\'')
     osa = osa.swaplevel(i='code', j='date')
     osa = osa.reindex(df.index, fill_value=0)
-
+    
     df['upperamo'] = osa.upperamo
     df['loweramo'] = osa.loweramo
+    '''
+    df['upperamo'] = df.high
+    df['loweramo'] = df.high
 
-    #index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
-    #index = index.fillna(0)
-    #index = index.loc['2006-1-1':]
 
     initializeholding(0)
-    logging.info('doProcessing...' + str(datetime.datetime.now()))
-    doProcessing(df, 1)
-    logging.info('finished...' + str(datetime.datetime.now()))
+    logging.info('doProcessing...')
+    ret = doProcessing(df, 1)
+    logging.info('finished...' + str(ret))
 
 def morningTrade():
     logging.info('retrieving today all...'+ str(datetime.datetime.now()))

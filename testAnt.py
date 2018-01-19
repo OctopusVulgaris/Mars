@@ -5,7 +5,7 @@ import numpy as np
 import requests
 from lxml import etree
 from io import StringIO, BytesIO
-from utility import round_series, getcodelist, getindexlist, reconnect
+from utility import round_series, getcodelist, getindexlist, reconnect,st_pattern
 import random, string
 import argparse
 import utility
@@ -883,7 +883,7 @@ def csvtohdf(source, type):
             #csv.loc[dt.datetime(year, 12, 31, 0, 0, 0), '年度报告'] = csv['每股收益_调整后(元)'][-1]
             csv['code'] = file[:6]
             csv = csv.set_index(['code', csv.index])
-            csv = csv.sort_index().rolling(window=2).apply(lambda x: x[1] - x[0]).combine_first(csv)
+            csv = csv.sort_index().rolling(window=2).apply(lambda x: x[1] - x[0]).combine_first(csv[:1])
         except ValueError:
             pass
         else:
@@ -903,7 +903,7 @@ def processfundamental():
     epsttm = eps.groupby(level=0, group_keys=False).rolling(window=4).sum()
     epsyoy = eps.groupby(level=0).resample('Y', level=1).sum()
     epsall = epsttm.combine_first(epsyoy)
-    epsall = epsall.loc(axis=0)[:, '2007-1-1':].dropna()
+    epsall = epsall.loc(axis=0)[:, '2007-1-1':].fillna(0)
     epsall = pd.DataFrame(epsall)
     adate = pd.read_hdf('d:/hdf5_data/adatesina.hdf')
     adate163 = pd.read_hdf('d:/hdf5_data/adate163.hdf')
@@ -911,10 +911,10 @@ def processfundamental():
     adate = pd.DataFrame(adate)
     epsall['adate'] = adate
     epsall = epsall.sort_index(ascending=True)
-    epstmp = epsall.drop_duplicates('adate', keep='last')
+    epstmp = epsall.groupby(level=0, group_keys=False).apply(lambda x: x.drop_duplicates('adate', keep='last'))
     epstmp = epstmp.dropna().reset_index().set_index(['code', 'adate']).sort_index()
 
-    day = pd.read_hdf('d:/hdf5_data/dailydata.h5')
+    day = pd.read_hdf('d:/hdf5_data/dailydata.h5', columns=['open'])
     #epstmp = epstmp.reindex(day.index, method='ffill')
     combinedIndex = epstmp.index.union(day.index)
     epstmp = epstmp.reindex(combinedIndex)
@@ -928,9 +928,8 @@ def processfundamental():
     #epsall = epstmp['每股收益_调整后(元)'].combine_first(epsall['每股收益_调整后(元)'])
     epsall = epstmp.combine_first(epsall)
     epsall = epsall.reindex(day.index)
-    day['pe'] = day.open / epsall['每股收益_调整后(元)']
-    day = day.fillna(0)
-    day.to_hdf('d:/hdf5_data/dailydata.h5','day', mode='w', format='t')
+    epsall['pe'] = day.open / epsall['每股收益_调整后(元)']
+
     epsall.to_hdf('d:/hdf5_data/fundamental.hdf', 'fundamental', mode='w', format='t')
     logging.info('processfundamention done '+ str(time.clock()-t1))
 
@@ -1197,6 +1196,22 @@ def getFundmental163(retry=50, pause=1):
 def cumprod(x):
     return x.cumprod()
 
+def addstflag():
+    t1 = time.clock()
+    dayk = pd.HDFStore('d:/hdf5_data/dailydata.h5', mode='a', complib='blosc')
+    day = dayk.select('day')
+
+    day['stflag'] = 0
+    day.loc[day.name.str.contains(st_pattern), 'stflag'] = 1
+
+    codelist = getcodelist()
+    idx = day.loc[codelist[codelist.status < 0].code].groupby(level=0, group_keys=False).apply(lambda x: x[x.open>0][-5:]).index
+    day.loc[idx, 'stflag'] = 1
+    dayk.put('day', day, format='t')
+
+    dayk.close()
+    logging.info('addstflag done' + str(time.clock() - t1))
+
 def calcFullRatio(daydata):
     t1 = time.clock()
     dayk = pd.HDFStore(daydata, mode='a', complib='blosc')
@@ -1374,6 +1389,7 @@ if __name__=="__main__":
         get_bonus_ri_sc()
         get_full_daily_data_163()
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
+        addstflag()
     elif (type == 'fundamental'):
         getadate163all()
         csvtohdf('sina', 'cwzb')
@@ -1398,7 +1414,7 @@ if __name__=="__main__":
     elif (type == '10maxhold'):
         getHolder163()
     elif (type == 'test'):
-        calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
+        addstflag()
 
 
 
