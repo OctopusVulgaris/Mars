@@ -5,10 +5,8 @@ import numpy as np
 import json
 import re
 import tushare as ts
-import dataloader
 import threading
 import time
-#from dataloader import engine
 from urllib.request import urlopen
 import subprocess as sp
 import sys
