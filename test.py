@@ -1,46 +1,18 @@
-# -*- coding:utf-8 -*-
-import zipfile
-import pandas as pd
-import numpy as np
-import os
-import tushare as ts
-import time
-import subprocess as sp
-import sys
-import requests
-import datetime as dt
-from lxml import etree
-from io import StringIO, BytesIO
-import random, string
-from utility import round_series, getcodelist, getindexlist, reconnect, st_pattern
-import argparse
-import talib as ta
 
-day = pd.read_hdf('d:/hdf5_data/dailydata.h5', columns=['open', 'high', 'low', 'close', 'hfqratio', 'name'], where='date > \'2007-1-1\'')
-day = day[day.open > 0]
-day['open'] = day.open * day.hfqratio
-day['high'] = day.high * day.hfqratio
-day['low'] = day.low * day.hfqratio
-day['close'] = day.close * day.hfqratio
-day['ocmax'] = day[['open', 'close']].max(axis=1).groupby(level=0, group_keys=False).rolling(window=67).max()
-day['ocmin'] = day[['open', 'close']].min(axis=1).groupby(level=0, group_keys=False).rolling(window=67).min()
-day['ocrate'] = day.ocmax / day.ocmin
+l = getcodelist(True)
+url = 'http://qt.gtimg.cn/q=' + ','.join(l[:50].code.apply(lambda x: 'sh'+ x if x.startswith('6') else 'sz'+ x))
 
-fd = pd.read_hdf('d:/hdf5_data/fundamental.hdf')
-day['eps'] = fd['每股收益_调整后(元)']
-day['kama'] = day.groupby(level=0).apply(lambda x: pd.Series(ta.KAMA(x.close.values, timeperiod=22), x.index.get_level_values(1)))
-day['kamapct'] = day.kama.groupby(level=0).pct_change()
-day['kamaind'] = day.kamapct.groupby(level=0).rolling(window=2).max()
 
-pday = day.groupby(level=0, group_keys=False).rolling(window=2).apply(lambda x: x[0])
-day['phigh'] = pday.high
-day['popen'] = pday.open
-day['plow'] = pday.low
-day['pclose'] = pday.close
-day['highlimit'] = day.pclose * 1.1
-day['lowlimit'] = day.pclose * 0.9
-day['stflag'] = 0
-day.loc[day.name.str.contains(st_pattern), 'stflag'] = 1
-day = day.swaplevel(0,1)
-day = day.groupby(level=0, group_keys=False).apply(lambda x: x.sort_values('ocrate')).dropna()
-day.to_hdf('d:/hdf5_data/PTTP.hdf', 'day', mode='w', format='t', complib='blosc')
+
+a = pd.read_table(url, encoding='gbk', delimiter='~', names=['','name','code','close','prevclose','open','volume','invol','outvol','buy1','bsize1','buy2','bsize2','buy3','bsize3','buy4','bsize4','buy5','bsize5','sell1','ssize1','sell2','ssize2','sell3','ssize3','sell4','ssize4','sell5','ssize5','trades','date','netchng','pctchng','high','low','trade','vol','amo','turnoverrate','pe','a','h','l','m','tradeablecap','totalcap','pb','highlimit','lowlimit','b','c','d','e','f'],usecols=['name','code','close','high','low','open','prevclose','netchng','pctchng','turnoverrate','date','vol','amo','totalcap','tradeablecap'], lineterminator='"', engine='c', dtype={'name':str, 'code':str,'close':float,'prevclose':float,'open':float,'high':float,'low':float,'vol':float,'amo':float,'tradeablecap':float,'totalcap':float,'turnoverrate':float,'netchng':float,'pctchng':float}, parse_dates=['date']).dropna()
+
+a = a[['code', 'date', 'name', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap']]
+a['date'] = a.date.apply(lambda x: x.date())
+a = a.set_index(['code','date'])
+a['vol'] = a.vol.astype(np.int64)
+a['amo'] = a.amo * 10000
+a['totalcap'] = a.totalcap * 100000000
+a['tradeablecap'] = a.tradeablecap * 100000000
+a['stflag'] = 0
+a.loc[a.name.str.contains(st_pattern), 'stflag'] = 1
+a['hfqratio'] = 1.0
