@@ -483,7 +483,7 @@ def get_bonus_ri_sc(retry=50, pause=1):
 
 def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), timeout=3):
     sdate = startdate.strftime('%Y%m%d')
-    enddate = dt.date.today() - dt.timedelta(days=1)
+    enddate = dt.date.today()# - dt.timedelta(days=1)
     edate = enddate.strftime('%Y%m%d')
     if code[0] == '6':
         url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
@@ -504,6 +504,7 @@ def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), tim
         #del data['name']
         #data.columns = ['code', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name']
         data['hfqratio'] = 1.0
+        data['stflag'] = 0
         data = data.reset_index()
         data = data.set_index(['code', 'date'])
 #        data.to_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
@@ -1440,14 +1441,15 @@ if __name__=="__main__":
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
         addstflag()
     elif (type == 'fundamental'):
+        backupfile()
         getadate163all()
         csvtohdf('sina', 'cwzb')
         processfundamental()
     elif (type == 'delta'):
-        updatestocklist(5, 5)
-        get_bonus_ri_sc()
+        #updatestocklist(5, 5)
+        #get_bonus_ri_sc()
         get_delta_daily_data_163()
-        calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
+        #calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
     elif (type == 'sinafull'):
         updatestocklist(5, 5)
         get_full_daily_data_sina()
