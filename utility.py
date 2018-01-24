@@ -10,6 +10,11 @@ import time
 from urllib.request import urlopen
 import subprocess as sp
 import sys
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
+import socket
+import configparser
 
 st_pattern = r'^S|^\*|退|ST'
 def reconnect():
@@ -160,6 +165,26 @@ def get_realtime_all_st(symbols=[], retry=60):
 
     return full_df
 
+def sendmail(log, prjname):
+    config = configparser.ConfigParser()
+    config.read('d:\\tradelog\\mail.ini')
+
+    fromaddr = config.get('mail', 'from')
+    toaddr = config.get('mail', 'to')
+    password = config.get('mail', 'pw')
+    msg = MIMEText(log, 'plain')
+    msg['Subject'] = Header('%s@' % (prjname) + str(dt.date.today())  + '_' + socket.gethostname())
+    msg['From'] = fromaddr
+    msg['To'] = toaddr
+
+    try:
+        sm = smtplib.SMTP_SSL('smtp.qq.com')
+        sm.ehlo()
+        sm.login(fromaddr, password)
+        sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
+        sm.quit()
+    except Exception as e:
+        logging.error(str(e))
 
 if __name__=="__main__":
     df = get_realtime_all_st()

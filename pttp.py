@@ -7,14 +7,10 @@ import ctypes as ct
 import time
 import talib as ta
 import argparse
-from utility import round_series, get_realtime_all_st, st_pattern
-import smtplib
-from email.mime.text import MIMEText
-from email.header import Header
-import socket
+from utility import round_series, get_realtime_all_st, st_pattern, sendmail
 import logging
 import sys
-import configparser
+
 from shutil import copyfile
 
 
@@ -85,7 +81,7 @@ def initializeholding(type, prjname):
         BLSHdll.initialize(ct.c_void_p(), ct.POINTER(ct.c_double)(), ct.POINTER(ct.c_double)(), ct.c_void_p(), ct.POINTER(ct.c_double)(), ct.POINTER(ct.c_double)(), ct.c_void_p(), ct.c_int(ll), ct.c_double(cash), ct.c_double(total), ct.c_int(type), ct.c_char_p(''.encode('ascii')))
         return
 
-    initholding = pd.read_csv('d:/trade/%s/holding_week.csv' % (prjname), header=None, parse_dates=True, names=['date', 'code', 'buyprc','buyhfqratio', 'vol', 'daystosell', 'historyhigh', 'amount', 'cash', 'total'], dtype={'code': np.int64, 'buyprc': np.float64, 'buyhfqratio': np.float64, 'vol': np.int64, 'daystosell': np.int64, 'historyhigh': np.float64, 'amount': np.float64, 'cash': np.float64, 'total': np.float64}, index_col='date')
+    initholding = pd.read_csv('d:/trade/%s/holding_pttp.csv' % (prjname), header=None, parse_dates=True, names=['date', 'code', 'buyprc','buyhfqratio', 'vol', 'daystosell', 'historyhigh', 'amount', 'cash', 'total'], dtype={'code': np.int64, 'buyprc': np.float64, 'buyhfqratio': np.float64, 'vol': np.int64, 'daystosell': np.int64, 'historyhigh': np.float64, 'amount': np.float64, 'cash': np.float64, 'total': np.float64}, index_col='date')
 
     if len(initholding) > 1:
         initholding = initholding.loc[initholding.index[-1]]
@@ -177,7 +173,7 @@ def regressionTest():
     logging.info('doProcessing...'+str(time.clock()-t1))
     logging.info('finished...' + str(ret))
 
-def morningTrade():
+def morningTrade(prjname):
     logging.info('retrieving today all...'+ str(dt.datetime.now()))
     realtime = pd.DataFrame()
     retry = 0
@@ -203,77 +199,43 @@ def morningTrade():
 
     realtime = realtime[realtime.pre_close > 0]
     df = df.reset_index(0)
-    df.reindex(realtime.index, fill_value=0)
+    df = df.reindex(realtime.index, fill_value=0)
 
     df.date = dt.date.today()
     df.idate = np.int64(time.mktime(dt.date.today().timetuple()))
     df.open = realtime.open
-    df.hfqratio = df.phfqratio * df.pclose / realtime.pre_close
+    df.hfqratio = df.pclose / realtime.pre_close
     df.loc[realtime.name.str.contains(st_pattern), 'stflag'] = 1
 
-    factor = df.phfqratio / df.hfqratio
-    df.pclose = round_series(df.pclose * factor)
-    df.plowlimit = round_series(df.plowlimit * factor)
-    df.plow = round_series(df.plow * factor)
-    df.phigh = round_series(df.phigh * factor)
-    df.lowlimit = round_series(df.lowlimit * factor)
-    df.highlimit = round_series(df.highlimit * factor)
-
-    df = df[df.ptotalcap > 0]
     df = df[df.hfqratio > 1]
-    df = df.sort_values('ptotalcap')
-    df['upperamo'] = np.int64(0)
-    df['loweramo'] = np.int64(0)
+    df = df.sort_values('ppocrate')
 
-    df.to_hdf('d:/tradelog/today.hdf', 'day')
-
-    #index = pd.read_hdf('d:\\HDF5_Data\\custom_totalcap_index.hdf', 'day')
-    #index = index.fillna(0)
-    #index = index.loc['2008-1-1':]
-    #index.loc[datetime.date.today()] = index.loc['2050-1-1']
 
     logging.info('initializing holding...' + str(dt.datetime.now()))
-    initializeholding(1)
+    initializeholding(1, prjname)
 
-    logging.info('doProcessing...' + str(datetime.datetime.now()))
-    doProcessing(df, 1)
+    logging.info('doProcessing...' + str(dt.datetime.now()))
+    params = pd.Series([0.92, 1.2, 1.19, 0.999, 12, 1199116800])
+    doProcessing(df, params)
 
-    logging.info('sending mail...' + str(datetime.datetime.now()))
-    transactions = pd.read_csv('d:\\tradelog\\transaction_real_c.csv', header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
+    logging.info('sending mail...' + str(dt.datetime.now()))
+    transactions = pd.read_csv('d:/trade/%s/transaction_pttp.csv'%(prjname), header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
 
     try:
-        transactions.type.replace({0:'buy', 1:'sell out pool', 2:'sell open high', 3:'sell fallback', 4:'sell st flag'}, inplace=True)
-        transactions = transactions.loc[datetime.date.today()]
+        transactions.type.replace({0:'buy', 9:'fallback', 8:'kama', 7:'st'}, inplace=True)
+        transactions = transactions.loc[dt.date.today()]
     except KeyError:
-        sendmail("no transaction today...")
+        sendmail("no transaction today...", prjname)
     else:
-        sendmail(transactions.to_string())
-    logging.info('finished...' + str(datetime.datetime.now()))
+        sendmail(transactions.to_string(), prjname)
+    logging.info('finished %s...' % prjname)
 
-def sendmail(log):
-    config = configparser.ConfigParser()
-    config.read('d:\\tradelog\\mail.ini')
 
-    fromaddr = config.get('mail', 'from')
-    toaddr = config.get('mail', 'to')
-    password = config.get('mail', 'pw')
-    msg = MIMEText(log, 'plain')
-    msg['Subject'] = Header('BLSH@' + str(datetime.date.today())  + '_' + socket.gethostname())
-    msg['From'] = fromaddr
-    msg['To'] = toaddr
-
-    try:
-        sm = smtplib.SMTP_SSL('smtp.qq.com')
-        sm.ehlo()
-        sm.login(fromaddr, password)
-        sm.sendmail(fromaddr, toaddr.split(','), msg.as_string())
-        sm.quit()
-    except Exception as e:
-        logging.error(str(e))
 
 def getArgs():
     parse=argparse.ArgumentParser()
-    parse.add_argument('-t', type=str, choices=['prepare', 'regression', 'trade'], default='regression', help='one of \'prepare\', \'regression\', \'trade\'')
+    parse.add_argument('-t', type=str)
+    parse.add_argument('-n', type=str)
 
     args=parse.parse_args()
     return vars(args)
@@ -281,6 +243,7 @@ def getArgs():
 if __name__=="__main__":
     args = getArgs()
     type = args['t']
+    prjname = args['n']
 
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -296,6 +259,6 @@ if __name__=="__main__":
     elif (type == 'prepare'):
         prepare()
     elif (type == 'trade'):
-        morningTrade()
+        morningTrade(prjname)
 
 
