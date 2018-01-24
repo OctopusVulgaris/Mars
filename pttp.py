@@ -25,6 +25,7 @@ def prepare():
     t1 = time.clock()
     day = pd.read_hdf('d:/hdf5_data/dailydata.h5', columns=['open', 'high', 'low', 'close', 'hfqratio', 'stflag'], where='date > \'2007-1-1\'')
     day = day[day.open > 0]
+    day['openorg'] = day.open
     day['open'] = day.open * day.hfqratio
     day['high'] = day.high * day.hfqratio
     day['low'] = day.low * day.hfqratio
@@ -38,7 +39,7 @@ def prepare():
     day['kama'] = day.groupby(level=0).apply(
         lambda x: pd.Series(ta.KAMA(x.close.values, timeperiod=22), x.index.get_level_values(1)))
     day['kamapct'] = day.kama.groupby(level=0).pct_change()+1
-    day['kamaind'] = day.kamapct.groupby(level=0,group_keys=False).rolling(window=2).max()
+    day['kamaind'] = day.kamapct.groupby(level=0, group_keys=False).rolling(window=2).max()
 
     pday = day.groupby(level=0, group_keys=False).rolling(window=2).apply(lambda x: x[0])
     day['phigh'] = pday.high
@@ -46,8 +47,8 @@ def prepare():
     day['plow'] = pday.low
     day['pclose'] = pday.close
     day['pkamaind'] = pday.kamaind
-    day['highlimit'] = day.pclose * 1.09
-    day['lowlimit'] = day.pclose * 0.906
+    day['highlimit'] = round_series(pday.close / day.hfqratio * 1.09)
+    day['lowlimit'] = round_series(pday.close / day.hfqratio * 0.906)
 
     day['ppocrate'] = day.ocrate.groupby(level=0, group_keys=False).rolling(window=3).apply(lambda x: x[0])
     day['ppocmax'] = day.ocmax.groupby(level=0, group_keys=False).rolling(window=3).apply(lambda x: x[0])
@@ -110,7 +111,7 @@ def doProcessing(df, params):
     cdate = df.idate.get_values().ctypes.data_as(ct.c_void_p)
     ccode = df.icode.get_values().ctypes.data_as(ct.c_void_p)
     cp1 = df.eps.get_values().ctypes.data_as(c_double_p)
-    cp2 = df.open.get_values().ctypes.data_as(c_double_p)
+    cp2 = df.openorg.get_values().ctypes.data_as(c_double_p)
     cp3 = df.close.get_values().ctypes.data_as(c_double_p)
     cp4 = df.high.get_values().ctypes.data_as(c_double_p)
     cp5 = df.low.get_values().ctypes.data_as(c_double_p)
@@ -121,7 +122,7 @@ def doProcessing(df, params):
     cp10 = df.ppocmax.get_values().ctypes.data_as(c_double_p)
     cp11 = df.highlimit.get_values().ctypes.data_as(c_double_p)
     cp12 = df.lowlimit.get_values().ctypes.data_as(c_double_p)
-    hfq = df.lowlimit.get_values().ctypes.data_as(c_double_p)
+    hfq = df.hfqratio.get_values().ctypes.data_as(c_double_p)
     cstflag = df.stflag.get_values().ctypes.data_as(ct.c_void_p)
     cactiveparam = params.get_values().ctypes.data_as(c_double_p)
 
@@ -189,7 +190,7 @@ def morningTrade():
         return
 
     logging.info('reading temp file...' + str(datetime.datetime.now()))
-    df = pd.read_hdf('d:\\HDF5_Data\\buylow_sellhigh_tmp.hdf', 'day', where='date = \'2050-1-1\'')
+    df = pd.read_hdf('d:/HDF5_Data/buylow_sellhigh_tmp.hdf', 'day', where='date = \'2050-1-1\'')
 
     realtime = realtime[realtime.pre_close > 0]
     df = df.reset_index(0)
@@ -197,9 +198,10 @@ def morningTrade():
 
     df.date = datetime.date.today()
     df.idate = np.int64(time.mktime(datetime.date.today().timetuple()))
-    df.open = realtime.open
-    df.hfqratio = df.phfqratio * df.pclose / realtime.pre_close
+
+    df['hfq'] = df.pclose / realtime.pre_close
     df.loc[realtime.name.str.contains(st_pattern), 'stflag'] = 1
+    df.open = realtime.open * df.hfq
 
     factor = df.phfqratio / df.hfqratio
     df.pclose = round_series(df.pclose * factor)
