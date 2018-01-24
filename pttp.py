@@ -41,9 +41,6 @@ def prepare():
     a['date'] = dt.datetime.today().date()
     a = a.set_index([a.index, 'date'])
     a['open'] = 0
-    a['high'] = 0
-    a['low'] = 999999
-    a['close'] = 0
     day = pd.concat([day, a])
 
     pday = day.groupby(level=0, group_keys=False).rolling(window=2).apply(lambda x: x[0])
@@ -204,12 +201,14 @@ def morningTrade(prjname):
     df.date = dt.date.today()
     df.idate = np.int64(time.mktime(dt.date.today().timetuple()))
     df.open = realtime.open
+    df.low = 0.0
+    df.high = 9999.0
     df.hfqratio = df.pclose / realtime.pre_close
     df.loc[realtime.name.str.contains(st_pattern), 'stflag'] = 1
 
     df = df[df.hfqratio > 1]
     df = df.sort_values('ppocrate')
-
+    df.set_index([df.index, 'date']).to_hdf('d:/trade/%s/today.hdf'%prjname, 'day', format='t')
 
     logging.info('initializing holding...' + str(dt.datetime.now()))
     initializeholding(1, prjname)
@@ -219,7 +218,7 @@ def morningTrade(prjname):
     doProcessing(df, params)
 
     logging.info('sending mail...' + str(dt.datetime.now()))
-    transactions = pd.read_csv('d:/trade/%s/transaction_pttp.csv'%(prjname), header=None, parse_dates=True, names=['date', 'type', 'code', 'prc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
+    transactions = pd.read_csv('d:/trade/%s/transaction_pttp.csv'%(prjname), header=None, parse_dates=True, names=['date', 'type', 'code', 'buyprc', 'sellprc', 'vol', 'amount', 'fee', 'cash'], index_col='date')
 
     try:
         transactions.type.replace({0:'buy', 9:'fallback', 8:'kama', 7:'st'}, inplace=True)

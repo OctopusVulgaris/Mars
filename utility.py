@@ -15,6 +15,7 @@ from email.mime.text import MIMEText
 from email.header import Header
 import socket
 import configparser
+import datetime as dt
 
 st_pattern = r'^S|^\*|退|ST'
 def reconnect():
