@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 
 import pandas as pd
-import datetime
+import datetime as dt
 import numpy as np
 import ctypes as ct
 import time
@@ -40,6 +40,16 @@ def prepare():
         lambda x: pd.Series(ta.KAMA(x.close.values, timeperiod=22), x.index.get_level_values(1)))
     day['kamapct'] = day.kama.groupby(level=0).pct_change()+1
     day['kamaind'] = day.kamapct.groupby(level=0, group_keys=False).rolling(window=2).max()
+
+    a = day.groupby(level=0).last()
+    a['date'] = dt.datetime.today()
+    a['idate'] = a.date.apply(lambda x: np.int64(time.mktime(x.timetuple())))
+    a = a.set_index([a.index, 'date'])
+    a['open'] = 0
+    a['high'] = 0
+    a['low'] = 999999
+    a['close'] = 0
+    day = pd.concat([day, a])
 
     pday = day.groupby(level=0, group_keys=False).rolling(window=2).apply(lambda x: x[0])
     day['phigh'] = pday.high
@@ -169,7 +179,7 @@ def regressionTest():
     logging.info('finished...' + str(ret))
 
 def morningTrade():
-    logging.info('retrieving today all...'+ str(datetime.datetime.now()))
+    logging.info('retrieving today all...'+ str(dt.datetime.now()))
     realtime = pd.DataFrame()
     retry = 0
     get = False
@@ -179,29 +189,28 @@ def morningTrade():
             # today = get_today_all()
             realtime = get_realtime_all_st()
             realtime = realtime.set_index('code')
-            if realtime.index.is_unique and len(realtime[realtime.open > 0]) > 500 and (realtime.date.iloc[-1].date() >= datetime.date.today()) & (realtime.date.iloc[0].date() >= datetime.date.today()):
+            if realtime.index.is_unique and len(realtime[realtime.open > 0]) > 500:
                 get = True
         except Exception:
             logging.error('retrying...')
             time.sleep(1)
 
-    if (realtime.date.iloc[-1].date() < datetime.date.today()) & (realtime.date.iloc[0].date() < datetime.date.today()):
-        logging.info('today ' + str(datetime.date.today()) + ' is holiday, no trading...')
+    if realtime.sort_values('date').date.iloc[-1].date() < dt.date.today():
+        logging.info('today ' + str(dt.date.today()) + ' is holiday, no trading...')
         return
 
-    logging.info('reading temp file...' + str(datetime.datetime.now()))
-    df = pd.read_hdf('d:/HDF5_Data/buylow_sellhigh_tmp.hdf', 'day', where='date = \'2050-1-1\'')
+    logging.info('reading temp file...' + str(dt.datetime.now()))
+    df = pd.read_hdf('d:/HDF5_Data/pttp.hdf', 'day', where='date = \''+str(dt.date.today()) + '\'')
 
     realtime = realtime[realtime.pre_close > 0]
     df = df.reset_index(0)
     df.reindex(realtime.index, fill_value=0)
 
-    df.date = datetime.date.today()
-    df.idate = np.int64(time.mktime(datetime.date.today().timetuple()))
-
-    df['hfq'] = df.pclose / realtime.pre_close
+    df.date = dt.date.today()
+    df.idate = np.int64(time.mktime(dt.date.today().timetuple()))
+    df.open = realtime.open
+    df.hfqratio = df.phfqratio * df.pclose / realtime.pre_close
     df.loc[realtime.name.str.contains(st_pattern), 'stflag'] = 1
-    df.open = realtime.open * df.hfq
 
     factor = df.phfqratio / df.hfqratio
     df.pclose = round_series(df.pclose * factor)
@@ -224,7 +233,7 @@ def morningTrade():
     #index = index.loc['2008-1-1':]
     #index.loc[datetime.date.today()] = index.loc['2050-1-1']
 
-    logging.info('initializing holding...' + str(datetime.datetime.now()))
+    logging.info('initializing holding...' + str(dt.datetime.now()))
     initializeholding(1)
 
     logging.info('doProcessing...' + str(datetime.datetime.now()))
