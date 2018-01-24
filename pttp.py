@@ -42,8 +42,7 @@ def prepare():
     day['kamaind'] = day.kamapct.groupby(level=0, group_keys=False).rolling(window=2).max()
 
     a = day.groupby(level=0).last()
-    a['date'] = dt.datetime.today()
-    a['idate'] = a.date.apply(lambda x: np.int64(time.mktime(x.timetuple())))
+    a['date'] = dt.datetime.today().date()
     a = a.set_index([a.index, 'date'])
     a['open'] = 0
     a['high'] = 0
@@ -66,8 +65,8 @@ def prepare():
 
     day = day.reset_index()
     day = day.set_index(['date', 'code'], drop=False)
-    day.date = day.date.apply(lambda x: np.int64(time.mktime(x.timetuple())))
-    day.code = day.code.apply(lambda x: np.int64(x))
+    day['date'] = day.date.apply(lambda x: np.int64(time.mktime(x.timetuple())))
+    day['code'] = day.code.apply(lambda x: np.int64(x))
     day = day.rename(columns={'date': 'idate', 'code': 'icode'})
     day = day.groupby(level=0, group_keys=False).apply(lambda x: x.sort_values('ppocrate')).dropna()
     day.to_hdf('d:/hdf5_data/pttp.hdf', 'day', mode='w', format='t', complib='blosc')
