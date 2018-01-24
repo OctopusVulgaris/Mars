@@ -141,7 +141,7 @@ def doProcessing(df, params):
 
 def regressionTest():
     logging.info('reading dayk tmp...' + str(dt.datetime.now()))
-    df = pd.read_hdf('d:/HDF5_Data/pttp.hdf', where='date > \'2009-3-29\'')
+    df = pd.read_hdf('d:/HDF5_Data/pttp.hdf', where='date > \'2008-1-1\'')
 
 
 
