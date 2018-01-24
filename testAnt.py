@@ -483,7 +483,7 @@ def get_bonus_ri_sc(retry=50, pause=1):
 
 def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), timeout=3):
     sdate = startdate.strftime('%Y%m%d')
-    enddate = dt.date.today() - dt.timedelta(days=1)
+    enddate = dt.date.today()# - dt.timedelta(days=1)
     edate = enddate.strftime('%Y%m%d')
     if code[0] == '6':
         url = r'http://quotes.money.163.com/service/chddata.html?code=0' + code + r'&start=' + sdate + r'&end=' + edate + r'&fields=TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP'
@@ -504,6 +504,7 @@ def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), tim
         #del data['name']
         #data.columns = ['code', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name']
         data['hfqratio'] = 1.0
+        data['stflag'] = 0
         data = data.reset_index()
         data = data.set_index(['code', 'date'])
 #        data.to_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
@@ -1212,6 +1213,17 @@ def addstflag():
     dayk.close()
     logging.info('addstflag done' + str(time.clock() - t1))
 
+def updateTodayDailyData():
+    t1 = time.clock()
+    dayk = pd.HDFStore('d:/hdf5_data/dailydata.h5', mode='a', complib='blosc')
+    day = dayk.select('day')
+
+    day = day.append(get_today_all()).sort_index()
+    dayk.put('day', day, format='t')
+
+    dayk.close()
+    logging.info('updateTodayDailyData done' + str(time.clock() - t1))
+
 def calcFullRatio(daydata):
     t1 = time.clock()
     dayk = pd.HDFStore(daydata, mode='a', complib='blosc')
@@ -1353,6 +1365,44 @@ def getHolder163():
 
     result.to_hdf('d:/HDF5_Data/Max10Holdings.hdf', 'hold', mode='w', format='f', complib='blosc')
 
+def get_today_all(symbols=[], retry=10):
+    t1 = time.clock()
+    if len(symbols) < 1:
+        riclist = getcodelist(True)
+        symbols = riclist['code']
+    full_df = pd.DataFrame()
+    length = len(symbols)
+    lenpertime = 50
+    loops = int(length / lenpertime + 1)
+    for idx in range(0, loops, 1):
+        sublist = symbols[idx * lenpertime:(idx + 1) * lenpertime]
+        url = 'http://qt.gtimg.cn/q=' + ','.join(sublist.apply(lambda x: 'sh'+ x if x.startswith('6') else 'sz'+ x))
+        for _ in range(retry):
+            try:
+                a = pd.read_table(url, encoding='gbk', delimiter='~',
+                                  names=['', 'name', 'code', 'close', 'prevclose', 'open', 'volume', 'invol', 'outvol','buy1', 'bsize1', 'buy2', 'bsize2', 'buy3', 'bsize3', 'buy4', 'bsize4', 'buy5', 'bsize5', 'sell1', 'ssize1', 'sell2', 'ssize2', 'sell3', 'ssize3', 'sell4', 'ssize4', 'sell5', 'ssize5', 'trades', 'date', 'netchng', 'pctchng', 'high', 'low', 'trade', 'vol', 'amo', 'turnoverrate', 'pe', 'a', 'h', 'l', 'm', 'tradeablecap', 'totalcap', 'pb', 'highlimit', 'lowlimit', 'b', 'c', 'd', 'e', 'f'], usecols=['name', 'code', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'date', 'vol', 'amo', 'totalcap', 'tradeablecap'],lineterminator='"', engine='c', dtype={'name': str, 'code': str, 'close': float, 'prevclose': float, 'open': float, 'high': float, 'low': float, 'vol': float, 'amo': float, 'tradeablecap': float, 'totalcap': float, 'turnoverrate': float, 'netchng': float, 'pctchng': float}, parse_dates=['date']).dropna()
+                a = a[['code', 'date', 'name', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate','vol', 'amo', 'totalcap', 'tradeablecap']]
+            except Exception as e:
+                err = 'Error %s' % e
+                print('Error %s' % e)
+                time.sleep(1)
+            else:
+                # print('get daily data for %s successfully' % row.code.encode("utf-8"))
+                break
+        full_df = full_df.append(a)
+
+    full_df['date'] = full_df.date.apply(lambda x: x.date())
+    full_df = full_df.set_index(['code', 'date'])
+    full_df['vol'] = full_df.vol.astype(np.int64) * 100
+    full_df['amo'] = full_df.amo * 10000
+    full_df['totalcap'] = full_df.totalcap * 100000000
+    full_df['tradeablecap'] = full_df.tradeablecap * 100000000
+    full_df['stflag'] = 0
+    full_df.loc[full_df.name.str.contains(st_pattern), 'stflag'] = 1
+    full_df['hfqratio'] = 1.0
+    logging.info('get today all done ' + str(time.clock() - t1))
+    return full_df.sort_index()
+
 def backupfile():
     copyfile('D:/hdf5_data/dailydata.h5', 'D:/hdf5_data/backup/dailydata.h5')
     copyfile('D:/hdf5_data/week.hdf', 'D:/hdf5_data/backup/week.hdf')
@@ -1391,14 +1441,15 @@ if __name__=="__main__":
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
         addstflag()
     elif (type == 'fundamental'):
+        backupfile()
         getadate163all()
         csvtohdf('sina', 'cwzb')
         processfundamental()
     elif (type == 'delta'):
-        updatestocklist(5, 5)
-        get_bonus_ri_sc()
+        #updatestocklist(5, 5)
+        #get_bonus_ri_sc()
         get_delta_daily_data_163()
-        calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
+        #calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
     elif (type == 'sinafull'):
         updatestocklist(5, 5)
         get_full_daily_data_sina()
@@ -1414,7 +1465,7 @@ if __name__=="__main__":
     elif (type == '10maxhold'):
         getHolder163()
     elif (type == 'test'):
-        addstflag()
+        updateTodayDailyData()
 
 
 
