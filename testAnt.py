@@ -1446,10 +1446,10 @@ if __name__=="__main__":
         csvtohdf('sina', 'cwzb')
         processfundamental()
     elif (type == 'delta'):
-        #updatestocklist(5, 5)
-        #get_bonus_ri_sc()
+        updatestocklist(5, 5)
+        get_bonus_ri_sc()
         get_delta_daily_data_163()
-        #calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
+        calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
     elif (type == 'sinafull'):
         updatestocklist(5, 5)
         get_full_daily_data_sina()
