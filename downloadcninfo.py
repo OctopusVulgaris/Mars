@@ -13,6 +13,7 @@ from io import StringIO, BytesIO
 import random, string
 from utility import round_series, getcodelist, getindexlist, reconnect
 import argparse
+import logging
 
 def random_str(randomlength=8):
     a = list(string.ascii_letters)
@@ -69,14 +70,18 @@ def getcninfooneric(code, startyear, endyear, type):
     df = pd.DataFrame()
     if zipfile.is_zipfile(BytesIO(r.content)):
         data = zipfile.ZipFile(BytesIO(r.content))
-        data.extractall('d:/cninfo')
+        data.extractall('d:/cninfo/%s' % type)
+        logging.info('finish %s %d' % (code, len(data.filelist)))
         #return len(data.namelist())
+    else:
+        logging.info('not zip %s' % (code))
+        raise ValueError
     return 0
 
 def task(type):
     cl = getcodelist()
     a = cl.code.apply(lambda x: 'python D:/project/OctopusVulgaris/Mars/downloadcninfo.py -c %s -s 2018 -e 2018 -t %s' % (x, 'hq'))
-    parts = 3
+    parts = 1
     l = len(a)
     all = []
     for i in range(parts):
@@ -126,6 +131,15 @@ def getArgs():
     return vars(args)
 
 if __name__=="__main__":
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S',
+                        filename='d:/tradelog/downloadcninfo.log'
+                        )
+    log = logging.getLogger()
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    log.addHandler(stdout_handler)
+
     args = getArgs()
     code = args['c']
     start = args['s']
@@ -137,4 +151,12 @@ if __name__=="__main__":
     elif 'csvtohdf' == T:
         csvtohdf('hq')
     else:
-        getcninfooneric(code, start, end, type)
+        for _ in range(10):
+            try:
+                logging.info('start %s' % code)
+                getcninfooneric(code, start, end, type)
+            except Exception:
+                logging.info('retry on %s' % code)
+                continue
+            else:
+                break

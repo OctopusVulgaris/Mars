@@ -1236,7 +1236,7 @@ def addstflag():
 def updateTodayDailyData():
     t1 = time.clock()
 
-    get_today_all().sort_index().to_hdf('d:/hdf5_data/lastday.hdf', 'day', mode='w', format='f', complib='blosc')
+    get_today_all().sort_index().to_hdf('d:/hdf5_data/lastday.hdf', 'day', mode='w', format='t', complib='blosc')
 
     logging.info('updateTodayDailyData done' + str(time.clock() - t1))
 
