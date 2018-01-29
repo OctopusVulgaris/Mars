@@ -507,7 +507,7 @@ def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), tim
         data['stflag'] = 0
         data = data.reset_index()
         data = data.set_index(['code', 'date'])
-#        data.to_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+
         data = data.sort_index()
         daykStore.append('day', data, min_itemsize={'values': 30})
 
@@ -552,8 +552,8 @@ def get_full_daily_data_163(retry=50, pause=1):
     daykStore.close()
 
 def get_delta_daily_data_163(retry=50, pause=1):
-    daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='a')
-    tmpdf = daykStore.select('day', start=-10000)
+    daykStore = pd.HDFStore('D:/HDF5_Data/dailydatadelta.h5', complib='blosc', mode='a')
+    tmpdf = daykStore.select('day')
     if tmpdf.empty:
         print ('error, empty day')
         logging.info('error, empty day')
@@ -584,8 +584,28 @@ def get_delta_daily_data_163(retry=50, pause=1):
         pass
     daykStore.close()
 
+def checkandappendaily(retry=50, pause=1):
+    c = pd.bdate_range(start='2017-12-31', end='2018-12-31')
+    holidays = [dt.date(2018, 1, 1), dt.date(2018, 2, 15), dt.date(2018, 2, 16), dt.date(2018, 2, 19),
+                dt.date(2018, 2, 20), dt.date(2018, 2, 21), dt.date(2018, 4, 5), dt.date(2018, 4, 6),
+                dt.date(2018, 4, 30), dt.date(2018, 5, 1), dt.date(2018, 6, 18), dt.date(2018, 9, 24),
+                dt.date(2018, 10, 1), dt.date(2018, 10, 2), dt.date(2018, 10, 3), dt.date(2018, 10, 4),
+                dt.date(2018, 10, 5)]
+    c = c.difference(holidays)
+    c = c[c.slice_indexer(end=dt.date.today() - dt.timedelta(days=1))]
+    lasttradeday = str(c[-1].date())
+
+    daykStore = pd.HDFStore('D:/HDF5_Data/dailydatadelta.h5', complib='blosc', mode='a')
+    tmpdf = daykStore.select('day', where='date=\'%s\'' % lasttradeday)
+    if tmpdf.empty:
+        data = tmpdf.append(pd.read_hdf('d:/hdf5_data/lastday.hdf'))
+        daykStore.append('day', data, min_itemsize={'values': 30})
+        logging.warning('163 missed last trade date data.')
+
+    daykStore.close()
+
 def get_full_daily_data_sina(retry=50, pause=1):
-    daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata_sina.h5', complib='blosc', mode='w')
+    daykStore = pd.HDFStore('D:/HDF5_Data/dailydata_sina.h5', complib='blosc', mode='w')
     target_list = getcodelist()
     llen = len(target_list)
     cnt = 0
@@ -1215,13 +1235,9 @@ def addstflag():
 
 def updateTodayDailyData():
     t1 = time.clock()
-    dayk = pd.HDFStore('d:/hdf5_data/dailydata.h5', mode='a', complib='blosc')
-    day = dayk.select('day')
 
-    day = day.append(get_today_all()).sort_index()
-    dayk.put('day', day, format='t')
+    get_today_all().sort_index().to_hdf('d:/hdf5_data/lastday.hdf', 'day', mode='w', format='f', complib='blosc')
 
-    dayk.close()
     logging.info('updateTodayDailyData done' + str(time.clock() - t1))
 
 def calcFullRatio(daydata):
@@ -1467,7 +1483,7 @@ if __name__=="__main__":
         getcninfodaily('full')
     elif (type == '10maxhold'):
         getHolder163()
-    elif (type == 'test'):
+    elif (type == 'updatetoday'):
         updateTodayDailyData()
 
 
