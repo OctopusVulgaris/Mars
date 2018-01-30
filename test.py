@@ -7,4 +7,4 @@ holidays=[dt.date(2018,1,1),dt.date(2018,2,15),dt.date(2018,2,16),dt.date(2018,2
 c = c.difference(holidays)
 c = c[c.slice_indexer(end=dt.date.today()-dt.timedelta(days=1))]
 lasttradeday = str(c[-1].date())
-day = pd.read_hdf('d:/hdf5_data/dailydata.h5', where='date=\'%s\'' % lasttradeday)
+day = pd.read_hdf('d:/hdf5_data/dailydata.hdf', where='date=\'%s\'' % lasttradeday)

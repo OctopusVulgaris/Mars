@@ -19,7 +19,7 @@ ashare_pattern = r'^0|^3|^6'
 
 def prepare():
     t1 = time.clock()
-    day = pd.read_hdf('d:/hdf5_data/dailydata.h5', columns=['open', 'high', 'low', 'close', 'hfqratio', 'stflag'], where='date > \'2007-1-1\'')
+    day = pd.read_hdf('d:/hdf5_data/dailydata.hdf', columns=['open', 'high', 'low', 'close', 'hfqratio', 'stflag'], where='date > \'2007-1-1\'')
     day = day[day.open > 0]
     day['openorg'] = day.open
     day['open'] = day.open * day.hfqratio

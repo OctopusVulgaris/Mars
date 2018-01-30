@@ -28,7 +28,7 @@ def Normalize(x):
     n['opct'] = n.open.pct_change() + 1
     return n
 
-df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','day', where='date > \'2006-12-1\'')
+df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf','day', where='date > \'2006-12-1\'')
 
 a = df.groupby(level=0, group_keys=False).apply(Normalize)
 

@@ -124,8 +124,8 @@ def ComputeCustomIndex(df):
 
 
 def prepareMediateFile():
-    logging.info('reading dailydata.h5...' + str(datetime.datetime.now()))
-    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5','day', columns=['close', 'high', 'low', 'open', 'totalcap', 'tradeablecap', 'stflag', 'hfqratio'], where='date > \'2006-1-1\'')
+    logging.info('reading dailydata.hdf...' + str(datetime.datetime.now()))
+    df = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf','day', columns=['close', 'high', 'low', 'open', 'totalcap', 'tradeablecap', 'stflag', 'hfqratio'], where='date > \'2006-1-1\'')
     #df = df[df.code.str.contains(ashare_pattern)]
     logging.info('sorting, [code, date]...' + str(datetime.datetime.now()))
 

@@ -189,7 +189,7 @@ if __name__=="__main__":
     mp.set_start_method('spawn')
 
 
-    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'day', columns=['open'], where='date > \'2016-9-2\'')
+    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', columns=['open'], where='date > \'2016-9-2\'')
     all = all[all.open > 0]
     all = all.reset_index(level=1)
     a = all.index.drop_duplicates()

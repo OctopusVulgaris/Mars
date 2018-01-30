@@ -503,12 +503,13 @@ def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), tim
         #data.nameutf = data.name.str.encode('utf-8')
         #del data['name']
         #data.columns = ['code', 'close', 'high', 'low', 'open', 'prevclose', 'netchng', 'pctchng', 'turnoverrate', 'vol', 'amo', 'totalcap', 'tradeablecap', 'name']
-        data['hfqratio'] = 1.0
-        data['stflag'] = 0
+        #data['hfqratio'] = 1.0
+        #data['stflag'] = 0
         data = data.reset_index()
         data = data.set_index(['code', 'date'])
 
         data = data.sort_index()
+        #data.to_hdf('d:/hdf5_data/dailydatadelta.hdf', 'day', mode='a', format='t', append=True)
         daykStore.append('day', data, min_itemsize={'values': 30})
 
 def get_fundmental_data_163(code, timeout=3):
@@ -935,7 +936,7 @@ def processfundamental():
     epstmp = epsall.groupby(level=0, group_keys=False).apply(lambda x: x.drop_duplicates('adate', keep='last'))
     epstmp = epstmp.dropna().reset_index().set_index(['code', 'adate']).sort_index()
 
-    day = pd.read_hdf('d:/hdf5_data/dailydata.h5', columns=['open'])
+    day = pd.read_hdf('d:/hdf5_data/dailydata.hdf', columns=['open'])
     #epstmp = epstmp.reindex(day.index, method='ffill')
     combinedIndex = epstmp.index.union(day.index)
     epstmp = epstmp.reindex(combinedIndex)
@@ -1219,8 +1220,9 @@ def cumprod(x):
 
 def addstflag():
     t1 = time.clock()
-    dayk = pd.HDFStore('d:/hdf5_data/dailydata.h5', mode='a', complib='blosc')
-    day = dayk.select('day')
+    #dayk = pd.HDFStore('d:/hdf5_data/dailydata.h5', mode='a', complib='blosc')
+    #day = dayk.select('day')
+    day = pd.read_hdf('d:/hdf5_data/dailydata.hdf')
 
     day['stflag'] = 0
     day.loc[day.name.str.contains(st_pattern), 'stflag'] = 1
@@ -1228,9 +1230,9 @@ def addstflag():
     codelist = getcodelist()
     idx = day.loc[codelist[codelist.status < 0].code].groupby(level=0, group_keys=False).apply(lambda x: x[x.open>0][-5:]).index
     day.loc[idx, 'stflag'] = 1
-    dayk.put('day', day, format='t')
-
-    dayk.close()
+    #dayk.put('day', day, format='t')
+    day.to_hdf('d:/hdf5_data/dailydata.hdf', 'day', mode='w', format='t')
+    #dayk.close()
     logging.info('addstflag done' + str(time.clock() - t1))
 
 def updateTodayDailyData():
@@ -1242,7 +1244,7 @@ def updateTodayDailyData():
 
 def calcFullRatio(daydata):
     t1 = time.clock()
-    dayk = pd.HDFStore(daydata, mode='a', complib='blosc')
+    dayk = pd.HDFStore(daydata, mode='r', complib='blosc')
     brs = pd.HDFStore('d:\\HDF5_Data\\brsInfo.h5', mode='r', complib='blosc')
     df = dayk.select('day')
     bi = brs.select('bonus')
@@ -1285,11 +1287,11 @@ def calcFullRatio(daydata):
     combinedIndex = all.index.union(df.index)
     all = all.reindex(combinedIndex, fill_value=1)
     all = all.groupby(level=0).apply(cumprod)
-    df.hfqratio = all
+    df['hfqratio'] = all
     #df.hfqratio.fillna(1, inplace=True)
     df = df.sort_index()
-    dayk.put('day', df, format='t')
-
+    #dayk.put('day', df, format='t', min_itemsize={'values': 30})
+    df.to_hdf('d:/hdf5_data/dailydata.hdf', 'day', mode='w', format='t')
     dayk.close()
     logging.info('callfullratio done' + str(time.clock() - t1))
 
@@ -1341,7 +1343,7 @@ def getMax10holder(code, ipodate, tradeable=True, retry=10):
         return pd.DataFrame()
 
 def getHolder163():
-    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.h5', 'day', columns=['open'])
+    all = pd.read_hdf('d:\\HDF5_Data\\dailydata.hdf', 'day', columns=['open'])
     all = all.reset_index(level=1)
     all = all.groupby(level=0).apply(lambda x: x.iloc[0])
     all = all.reset_index(level=0)
@@ -1486,6 +1488,8 @@ if __name__=="__main__":
         getHolder163()
     elif (type == 'updatetoday'):
         updateTodayDailyData()
+    elif (type == 'test'):
+        get_full_daily_data_163()
 
 
 
