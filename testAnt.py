@@ -16,6 +16,7 @@ import sys
 import tushare as ts
 import os
 from shutil import copyfile
+import pymongo
 
 
 ashare_pattern = r'^0|^3|^6'
@@ -102,7 +103,7 @@ def get_one_index_full(code, idxStore, timeout=60):
         data['vol'] = data['vol'].apply(convertNone)
         data['amo'] = data['amo'].apply(convertNone)
 
-        idxStore.append('idx', data, min_itemsize={'name': 30})
+        idxStore.append('idx', data, min_itemsize={'name': 30}, data_columns=True)
 
 def get_all_full_index_daily(retry=50, pause=10):
     idxStore = pd.HDFStore('D:/HDF5_Data/indexdaily.h5', complib='blosc', mode='w')
@@ -138,7 +139,7 @@ def updateindexlist():
         all.CODE = all.CODE.str.slice(1)
         all = all[['CODE', 'NAME']].reset_index(drop=True)
         all.columns = ['code', 'name']
-        all.to_hdf('d:/hdf5_data/indexlist.hdf', 'day')
+        all.to_hdf('d:/hdf5_data/indexlist.hdf', 'day', mode='w', format='t', complib='blosc', data_columns=True)
         logging.info('finished to get index list...' + str(dt.datetime.now()))
     else:
         logging.info('failed to get list...' + str(dt.datetime.now()))
@@ -254,7 +255,7 @@ def updatestocklist(retry_count, pause):
             df = df.set_index('code')
             df = df[df.index.get_level_values(0).str.contains(ashare_pattern)]
             df = df.sort_index()
-            df.to_hdf('d:/HDF5_Data/stocklist.hdf', 'list', mode='w', format='t', complib='blosc')
+            df.to_hdf('d:/HDF5_Data/stocklist.hdf', 'list', mode='w', format='t', complib='blosc', data_columns=True)
             logging.info('finished retrieving ' + str(len(df)) + ' successfully...' + str(dt.datetime.now()))
             return
     logging.info('get_stock_list failed...' + str(dt.datetime.now()))
@@ -337,9 +338,9 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
         df['type'] = 'bonus'
         #print df
         key = 'b' + code
-        brsStore.append('bonus', df, min_itemsize={'values': 50})
+        brsStore.append('bonus', df, min_itemsize={'values': 50}, data_columns=True)
         #logging.info('Info %s has saved bonus' % code)
-        #df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+        #df.to_hdf('d:\\HDF5_Data\\binfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True, data_columns=True)
     else:
         logging.info('Info %s has empty bonus' % code)
         #logging.info('Info len bitems %d' % len(bitems))
@@ -356,8 +357,8 @@ def get_bonus_and_ri(code, brsStore, timeout=5):
         df1['type'] = 'rightsissue'
         #print df
         key = 'r' + code
-        brsStore.append('rightsissue', df1, min_itemsize = {'values': 50})
-        #df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+        brsStore.append('rightsissue', df1, min_itemsize = {'values': 50}, data_columns=True)
+        #df.to_hdf('d:\\HDF5_Data\\rinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True, data_columns=True)
     else:
         logging.info('Info %s has empty righsissue' % code)
         #logging.info('Info len ritems %d' % len(ritems))
@@ -425,8 +426,8 @@ def get_stock_change(code, brsStore, timeout=5):
         df['type'] = 'stockchange'
         #print df
         key = 's' + code
-        brsStore.append('stockchange', df, min_itemsize={'values': 50})
-        #df.to_hdf('d:\\HDF5_Data\\sinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True)
+        brsStore.append('stockchange', df, min_itemsize={'values': 50}, data_columns=True)
+        #df.to_hdf('d:\\HDF5_Data\\sinfo.hdf', 'day', mode='a', format='t', complib='blosc', append=True, data_columns=True)
     else:
         logging.info('Info %s has empty stock change' % code)
         logging.info('Info len sitems %d' % len(tables))
@@ -481,7 +482,7 @@ def get_bonus_ri_sc(retry=50, pause=1):
         pass
     brsStore.close()
 
-def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), timeout=3):
+def get_stock_daily_data_163(db, code, daykStore, startdate = dt.date(1997,1,2), timeout=3):
     sdate = startdate.strftime('%Y%m%d')
     enddate = dt.date.today()# - dt.timedelta(days=1)
     edate = enddate.strftime('%Y%m%d')
@@ -493,6 +494,7 @@ def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), tim
     r = requests.get(url, timeout=timeout)
     data = pd.read_csv(StringIO(r.content.decode(encoding='gbk')), index_col=u'日期', parse_dates=True)
     data.index.names = ['date']
+    logging.info('get daily data for %s ' % (code))
     if not data.empty:
         data.columns = ['code','name','close','high','low','open','prevclose','netchng','pctchng','turnoverrate','vol','amo','totalcap','tradeablecap']
         data['code'] = pd.Series(code, index=data.index)
@@ -506,11 +508,18 @@ def get_stock_daily_data_163(code, daykStore, startdate = dt.date(1997,1,2), tim
         #data['hfqratio'] = 1.0
         #data['stflag'] = 0
         data = data.reset_index()
-        data = data.set_index(['code', 'date'])
+        try:
+            dd = data.T.to_dict().values()
+            db.day.insert_many(dd, ordered=False)
+        except Exception as e:
+            pass
 
+        data = data.set_index(['code', 'date'])
         data = data.sort_index()
-        #data.to_hdf('d:/hdf5_data/dailydatadelta.hdf', 'day', mode='a', format='t', append=True)
-        daykStore.append('day', data, min_itemsize={'values': 30})
+        #data.to_hdf('d:/hdf5_data/dailydatadelta.hdf', 'day', mode='a', format='t', append=True, data_columns=True)
+        daykStore.append('day', data, min_itemsize={'values': 30}, data_columns=True)
+
+        logging.info('get daily data for %s successfully' % (code))
 
 def get_fundmental_data_163(code, timeout=3):
     url = 'http://quotes.money.163.com/service/zycwzb_' + code + '.html?type=report'
@@ -527,8 +536,9 @@ def get_fundmental_data_163(code, timeout=3):
     data = data.replace('--', np.NaN)
     data.to_csv('D:/HDF5_Data/fundamental/163/ylnl/' + code + '.csv', header=False, encoding='gbk')
 
-def get_full_daily_data_163(retry=50, pause=1):
+def get_full_daily_data_163(conn, retry=50, pause=1):
     daykStore = pd.HDFStore('D:\\HDF5_Data\\dailydata.h5', complib='blosc', mode='w')
+    db = conn['day']
     target_list = getcodelist()
     size = len(target_list)
     cnt = 0
@@ -538,14 +548,13 @@ def get_full_daily_data_163(retry=50, pause=1):
         while row:
             for _ in range(retry):
                 try:
-                    get_stock_daily_data_163(row.code, daykStore)
+                    get_stock_daily_data_163(db, row.code, daykStore)
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
                     reconnect()
                 else:
                     cnt += 1
-                    logging.info('get daily data for %s successfully, %d of %d' % (row.code, cnt, size))
                     break
             row = next(itr)
     except StopIteration as e:
@@ -576,7 +585,6 @@ def get_delta_daily_data_163(retry=50, pause=1):
                     logging.info('Error %s' % e)
                     time.sleep(pause)
                 else:
-                    logging.info('get delta daily data for %s successfully' % row.code)
                     cnt += 1
                     print ('retrieved delta ' + row.code + ', ' + str(cnt) + ' of ' + str(llen))
                     break
@@ -600,7 +608,7 @@ def checkandappendaily(retry=50, pause=1):
     tmpdf = daykStore.select('day', where='date=\'%s\'' % lasttradeday)
     if tmpdf.empty:
         data = tmpdf.append(pd.read_hdf('d:/hdf5_data/lastday.hdf'))
-        daykStore.append('day', data, min_itemsize={'values': 30})
+        daykStore.append('day', data, min_itemsize={'values': 30}, data_columns=True)
         logging.warning('163 missed last trade date data.')
 
     daykStore.close()
@@ -625,7 +633,7 @@ def get_full_daily_data_sina(retry=50, pause=1):
                         data = data.sort_index()
                         data['code'] = row.code
                         data = data.set_index(['code', data.index])
-                        daykStore.append('day', data)
+                        daykStore.append('day', data, data_columns=True)
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
@@ -666,7 +674,7 @@ def get_delta_daily_data_sina(retry=50, pause=1):
                         data = data.sort_index()
                         data['code'] = row.code
                         data = data.set_index(['code', data.index])
-                        daykStore.append('day', data)
+                        daykStore.append('day', data, data_columns=True)
                 except Exception as e:
                     err = 'Error %s' % e
                     logging.info('Error %s' % e)
@@ -780,7 +788,7 @@ def getadate163all():
 
     all = pd.concat(dfs)
     #print(all.to_string())
-    all.to_hdf('d:/hdf5_data/adate163.hdf', 'fundamental')
+    all.to_hdf('d:/hdf5_data/adate163.hdf', 'fundamental', complib='blosc', data_columns=True)
     logging.info('getadate163all done ' + str(time.clock() - t1))
 
 def getadatesina(code, type):
@@ -838,7 +846,7 @@ def getadatesinaall():
         dfs.append(getadatesina(code, '年度报告'))
 
     all = pd.concat(dfs)
-    all.to_hdf('d:/hdf5_data/adatesina.hdf', 'fundamental')
+    all.to_hdf('d:/hdf5_data/adatesina.hdf', 'fundamental', format='t', data_columns=True)
     logging.info('getadatesinaall done ' + str(time.clock() - t1))
 
 def readsinapage(url, match='.+', att=None):
@@ -914,7 +922,7 @@ def csvtohdf(source, type):
 
     df = pd.concat(dfs)
     df = df.sort_index()
-    df.to_hdf(outputfile, 'fundamental',mode='w', format='t')
+    df.to_hdf(outputfile, 'fundamental',mode='w', format='t', data_columns=True)
 
     logging.info('csvtohdf done ' + str(time.clock() - t1))
 
@@ -952,7 +960,7 @@ def processfundamental():
     epsall = epsall.reindex(day.index)
     epsall['pe'] = day.open / epsall['每股收益_调整后(元)']
 
-    epsall.to_hdf('d:/hdf5_data/fundamental.hdf', 'fundamental', mode='w', format='t')
+    epsall.to_hdf('d:/hdf5_data/fundamental.hdf', 'fundamental', mode='w', format='t', data_columns=True)
     logging.info('processfundamention done '+ str(time.clock()-t1))
 
 def random_str(randomlength=8):
@@ -1182,7 +1190,7 @@ def get_today_all_from_sina(retry=50, pause=10):
     df = df.combine_first(missed)
     df = df.fillna(0)
 
-    df.to_hdf('d:\\HDF5_Data\\today.hdf', 'tmp', mode='w', format='t', complib='blosc')
+    df.to_hdf('d:\\HDF5_Data\\today.hdf', 'tmp', mode='w', format='t', complib='blosc', data_columns=True)
 
 
 def close2PrevClose(x):
@@ -1231,14 +1239,14 @@ def addstflag():
     idx = day.loc[codelist[codelist.status < 0].code].groupby(level=0, group_keys=False).apply(lambda x: x[x.open>0][-5:]).index
     day.loc[idx, 'stflag'] = 1
     #dayk.put('day', day, format='t')
-    day.to_hdf('d:/hdf5_data/dailydata.hdf', 'day', mode='w', format='t')
+    day.to_hdf('d:/hdf5_data/dailydata.hdf', 'day', mode='w', format='t', data_columns=True)
     #dayk.close()
     logging.info('addstflag done' + str(time.clock() - t1))
 
 def updateTodayDailyData():
     t1 = time.clock()
 
-    get_today_all().sort_index().to_hdf('d:/hdf5_data/lastday.hdf', 'day', mode='w', format='t', complib='blosc')
+    get_today_all().sort_index().to_hdf('d:/hdf5_data/lastday.hdf', 'day', mode='w', format='t', complib='blosc', data_columns=True)
 
     logging.info('updateTodayDailyData done' + str(time.clock() - t1))
 
@@ -1283,7 +1291,7 @@ def calcFullRatio(daydata):
 
     all = si.tradeshare / si.prevts
     all = all.combine_first(factor)
-    all.to_hdf('d:\\HDF5_Data\\hfqfactor.hdf', 'factor', mode='w', format='t', complib='blosc')
+    all.to_hdf('d:\\HDF5_Data\\hfqfactor.hdf', 'factor', mode='w', format='t', complib='blosc', data_columns=True)
     combinedIndex = all.index.union(df.index)
     all = all.reindex(combinedIndex, fill_value=1)
     all = all.groupby(level=0).apply(cumprod)
@@ -1291,7 +1299,7 @@ def calcFullRatio(daydata):
     #df.hfqratio.fillna(1, inplace=True)
     df = df.sort_index()
     #dayk.put('day', df, format='t', min_itemsize={'values': 30})
-    df.to_hdf('d:/hdf5_data/dailydata.hdf', 'day', mode='w', format='t')
+    df.to_hdf('d:/hdf5_data/dailydata.hdf', 'day', mode='w', format='t', data_columns=True)
     dayk.close()
     logging.info('callfullratio done' + str(time.clock() - t1))
 
@@ -1364,7 +1372,7 @@ def getHolder163():
     except StopIteration as e:
         pass
 
-    result.to_hdf('d:/HDF5_Data/Max10TradeableHoldings.hdf', 'hold', mode='w', format='f', complib='blosc')
+    result.to_hdf('d:/HDF5_Data/Max10TradeableHoldings.hdf', 'hold', mode='w', format='f', complib='blosc', data_columns=True)
 
     cnt = 0
     result = pd.DataFrame()
@@ -1381,7 +1389,7 @@ def getHolder163():
     except StopIteration as e:
         pass
 
-    result.to_hdf('d:/HDF5_Data/Max10Holdings.hdf', 'hold', mode='w', format='f', complib='blosc')
+    result.to_hdf('d:/HDF5_Data/Max10Holdings.hdf', 'hold', mode='w', format='t', complib='blosc', data_columns=True)
 
 def get_today_all(symbols=[], retry=10):
     t1 = time.clock()
@@ -1449,6 +1457,7 @@ if __name__=="__main__":
     stdout_handler = logging.StreamHandler(sys.stdout)
     log.addHandler(stdout_handler)
 
+    conn = pymongo.MongoClient('localhost', 27017)
     if (type == 'full'):
         backupfile()
         updatestocklist(5, 5)
@@ -1456,7 +1465,7 @@ if __name__=="__main__":
         getadatesinaall()
         getadate163all()
         get_bonus_ri_sc()
-        get_full_daily_data_163()
+        get_full_daily_data_163(conn['day'])
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
         addstflag()
     elif (type == 'fundamental'):
@@ -1489,7 +1498,9 @@ if __name__=="__main__":
     elif (type == 'updatetoday'):
         updateTodayDailyData()
     elif (type == 'test'):
-        get_full_daily_data_163()
+        get_full_daily_data_163(conn)
+
+    conn.close()
 
 
 
