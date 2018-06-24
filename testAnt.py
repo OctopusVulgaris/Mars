@@ -1465,7 +1465,7 @@ if __name__=="__main__":
         getadatesinaall()
         getadate163all()
         get_bonus_ri_sc()
-        get_full_daily_data_163(conn['day'])
+        get_full_daily_data_163(conn)
         calcFullRatio('d:\\HDF5_Data\\dailydata.h5')
         addstflag()
     elif (type == 'fundamental'):
